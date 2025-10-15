@@ -23,7 +23,7 @@ export default function Layout({ children }) {
         <div className="flex-1 min-w-0 md:pl-64 flex flex-col min-h-screen">
           <Header onMenuClick = { () => setSidebarOpen(true)} />
           
-          <main className="flex-1 min-w-0-light p-6 overflow-y-auto">
+          <main className="flex-1 min-w-0 p-6 overflow-y-auto">
              {/* {children} */}
              <div className="max-w-7xl mx-auto">
                   <Outlet />
