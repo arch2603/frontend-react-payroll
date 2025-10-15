@@ -8,14 +8,21 @@ const  Dashboard      = lazy( () => import("./pages/Dashboard"));
 const  Login          = lazy( () => import("./pages/Login"));
 const  Payslip        = lazy( () =>import("./pages/Payslip"));
 const  Leaves         = lazy( () => import("./pages/Leaves"));
-const  Deductions     = lazy( ()=> import("./pages/Deductions"));
+const  Deductions     = lazy( () => import("./pages/Deductions"));
 const  Admin          = lazy( () => import("./pages/AdminDashboard"));
+const NotFound        = lazy( () => import("./pages/NotFound") )
 
 
 const PrivateRoute = ({ children }) => {
   const { auth } = useAuth();
   return auth ? children : <Navigate to="/login" replace />;
 };
+
+function Fallback() {
+  return (
+    <div className="p-6 text-sm opacity-80">Loading…</div>
+  );
+}
 
 function App() {
   return (
@@ -25,7 +32,7 @@ function App() {
        
           {/* Main layout (Header + Content) */}
           <div className="flex flex-col flex-1">
-              <Suspense fallback={ <div className="p-6">Loading...</div>}>
+              <Suspense fallback={<Fallback />}>
                 <Routes>
                     <Route path="/" element={<Navigate to="/dashboard" replace />} />
                     <Route path="/login" element={<Login />} />
@@ -42,6 +49,7 @@ function App() {
                           </ProtectedRoute>
                         }
                       />
+                      <Route path="*" element={<NotFound />} />
                     </Route>
                     <Route path="*" element={<Navigate to="/login" replace />} />
                    
