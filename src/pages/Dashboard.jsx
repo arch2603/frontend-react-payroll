@@ -135,6 +135,9 @@ export default function Dashboard() {
   return (
     <div className="p-6">
       <h2 className="text-2xl font-bold mb-4">Dashboard</h2>
+      <div className="h-10 w-full bg-red-500 rounded mb-4 flex items-center justify-center text-white">
+             Tailwind is ON if this is red.
+      </div>
 
       {/* KPI Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4 mb-6">
