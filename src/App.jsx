@@ -5,6 +5,7 @@ import ProtectedRoute from "./components/ProtectedRoute";
 import Layout from "./components/Layout";
 
 const  Dashboard      = lazy( () => import("./pages/Dashboard"));
+const  Employee     = lazy( () => import("./pages/Employee"));
 const  Login          = lazy( () => import("./pages/Login"));
 const  Payslip        = lazy( () =>import("./pages/Payslip"));
 const  Leaves         = lazy( () => import("./pages/Leaves"));
@@ -38,6 +39,7 @@ function App() {
                     <Route path="/login" element={<Login />} />
                     <Route element={<ProtectedRoute><Layout /></ProtectedRoute>}>
                       <Route path="/dashboard" element={<Dashboard />} />
+                      <Route path="/employee" element={<Employee />} />
                       <Route path="/payslip" element={<Payslip />} />
                       <Route path="/leaves" element={<Leaves />} />
                       <Route path="/deductions" element={<Deductions />} />
