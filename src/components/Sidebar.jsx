@@ -1,6 +1,6 @@
 import { NavLink } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
-import { LayoutDashboard, FileText, Calendar, MinusSquare, Shield } from "lucide-react";
+import { LayoutDashboard, Users, FileText, Calendar, MinusSquare, Shield } from "lucide-react";
 
 const Sidebar = ({open, setOpen}) => {
   const { auth } = useAuth();
