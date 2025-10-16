@@ -23,7 +23,7 @@ const Sidebar = ({open, setOpen}) => {
         </div>
         <nav className="space-y-1">
           <NavLink to="/dashboard" className={linkClass} onClick={() => setOpen(false)}><LayoutDashboard className="h-4 w-4" /> Dashboard</NavLink>
-          <NavLink to="/employee" className={linkClass}><Users className="h-4 w-4" /> Employee</NavLink>
+          <NavLink to="/employees" className={linkClass}onClick={() => setOpen(false)}><Users className="h-4 w-4" /> Employees</NavLink>
           <NavLink to="/payslip" className={linkClass} onClick={() => setOpen(false)}><FileText className="h-4 w-4" /> Payslip</NavLink>
           <NavLink to="/leaves" className={linkClass} onClick={() => setOpen(false)}><Calendar className="h-4 w-4" /> Leaves</NavLink>
           <NavLink to="/deductions" className={linkClass} onClick={() => setOpen(false)}><MinusSquare className="h-4 w-4" /> Deductions</NavLink>
@@ -37,7 +37,7 @@ const Sidebar = ({open, setOpen}) => {
           <div className="h-14 px-4 border-b dark:border-gray-700 flex items-center font-semibold">Payroll</div>
           <nav className="flex-1 p-3 space-y-1">
             <NavLink to="/dashboard" className={linkClass}><LayoutDashboard className="h-4 w-4" /> Dashboard</NavLink>
-            <NavLink to="/employee" className={linkClass}><Users className="h-4 w-4" /> Employee</NavLink>
+            <NavLink to="/employees" className={linkClass}><Users className="h-4 w-4" /> Employees</NavLink>
             <NavLink to="/payslip" className={linkClass}><FileText className="h-4 w-4" /> Payslip</NavLink>
             <NavLink to="/leaves" className={linkClass}><Calendar className="h-4 w-4" /> Leaves</NavLink>
             <NavLink to="/deductions" className={linkClass}><MinusSquare className="h-4 w-4" /> Deductions</NavLink>
