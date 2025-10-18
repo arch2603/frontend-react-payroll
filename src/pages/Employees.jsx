@@ -62,7 +62,6 @@ export default function Employees() {
     setLoading(true);
     api(`/employees?limit=50&search=${encodeURIComponent(q)}`)
       .then((data) => {
-        console.log("Employees API data:", data);
         const items = data?.items ?? data?.rows ?? data?.employees ?? data ?? [];
         if (!ignore) setRows(Array.isArray(items) ? items : [])
       })

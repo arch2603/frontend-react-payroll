@@ -48,12 +48,24 @@ function Section({ title, children, right }) {
 async function apiGet(path, signal) {
   const token = localStorage.getItem("token");
   const res = await fetch(`/api${path}`, {
-    headers: { Authorization: token ? `Bearer ${token}` : undefined },
+    // headers: { Authorization: token ? `Bearer ${token}` : undefined },
+    headers: token ? { Authorization: `Bearer ${token}` } : {},
     credentials: "include",
     signal,
   });
-  if (!res.ok) throw new Error(`GET ${path} ${res.status}`);
-  return res.json();
+
+  const text = await res.text();
+  let body;
+  try { body = JSON.parse(text); } catch { body = { raw: text || null }; }
+
+  if (!res.ok) {
+    const err = new Error(`GET ${path} ${res.status}`);
+    err.status = res.status;
+    err.body = body;
+    throw err;
+  }
+
+  return body;
 }
 
 export default function Dashboard() {
@@ -69,55 +81,62 @@ export default function Dashboard() {
     payslipsPending: 0,
     leavesPending: 0,
   });
+
   const [recent, setRecent] = useState([]); // last 5 actions
   const [keyDates, setKeyDates] = useState({
     nextPeriodEnd: null,
     publicHolidays: [], // [{date, name}]
   });
 
+  const [errors, setErrors] = useState({
+    employees: false,
+    payrun: false,
+    payslips: false,
+    leaves: false,
+  });
+
+
   useEffect(() => {
     const ac = new AbortController();
 
     (async () => {
-      try {
-        setLoading(true);
+      setLoading(true);
+      const helper = (r, def = null) => (r.status === "fulfilled" ? r.value : def);
 
-        // parallel fetches
-        const [
-          employeesRes,
-          payrunRes,
-          payslipRes,
-          leavesRes,
-          auditRes,
-          calendarRes,
-        ] = await Promise.all([
-          apiGet("/employees/count", ac.signal),
-          apiGet("/pay-runs/current/summary", ac.signal),
-          apiGet("/payslips/pending/count", ac.signal),
-          apiGet("/leaves/pending/count", ac.signal),
-          apiGet("/audit?limit=5", ac.signal),
-          apiGet("/calendar/next-key-dates", ac.signal),
-        ]);
+      const results = await Promise.allSettled([
+        apiGet("/dashboard/employees/count", ac.signal),  // 0
+        apiGet("/pay-runs/current/summary", ac.signal),   // 1 (may not exist yet)
+        apiGet("/payslips/pending/count", ac.signal),     // 2
+        apiGet("/leaves/pending/count", ac.signal),       // 3
+        apiGet("/audit?limit=5", ac.signal),              // 4
+        apiGet("/calendar/next-key-dates", ac.signal),
+      ]);
 
-        setCounts({
-          employees: employeesRes.count ?? 0,
-          openPayRunStatus: payrunRes?.status ?? "None",
-          payslipsPending: payslipRes.count ?? 0,
-          leavesPending: leavesRes.count ?? 0,
-        });
+      const [employeesRes, payrunRes, payslipRes, leavesRes, auditRes, calendarRes] = results;
+      setErrors({
+        employees: employeesRes.status === "rejected",
+        payrun: payrunRes.status === "rejected",
+        payslips: payslipRes.status === "rejected",
+        leaves: leavesRes.status === "rejected",
+      });
+      setCounts({
+        employees: helper(employeesRes, { count: 0 })?.count ?? 0,
+        openPayRunStatus: helper(payrunRes, { status: "None" })?.status ?? "None",
+        payslipsPending: helper(payslipRes, { count: 0 })?.count ?? 0,
+        leavesPending: helper(leavesRes, { count: 0 })?.count ?? 0,
+      });
 
-        setRecent(auditRes.items ?? []);
-        setKeyDates({
-          nextPeriodEnd: calendarRes?.nextPeriodEnd ?? null,
-          publicHolidays: calendarRes?.publicHolidays ?? [],
-        });
+      setRecent(helper(auditRes, { items: [] })?.items ?? []);
+      setKeyDates({
+        nextPeriodEnd: helper(calendarRes, { nextPeriodEnd: null })?.nextPeriodEnd ?? null,
+        publicHolidays: helper(calendarRes, { publicHolidays: [] })?.publicHolidays ?? [],
+      });
 
-        setErr(null);
-      } catch (e) {
-        if (e.name !== "AbortError") setErr(e);
-      } finally {
-        setLoading(false);
-      }
+      // if at least one failed, keep a soft error message but DO NOT block KPIs
+      const anyFailed = results.some(r => r.status === "rejected");
+      setErr(anyFailed ? new Error("Some dashboard data failed to load") : null);
+      setLoading(false);
+
     })();
 
     return () => ac.abort();
@@ -143,7 +162,7 @@ export default function Dashboard() {
           to="/employees"
           icon={Users}
           loading={loading}
-          error={!!err}
+          error={errors.employees}
         />
         <KPICard
           title="Open Pay Run"
@@ -151,7 +170,7 @@ export default function Dashboard() {
           to="/payruns/current"
           icon={CalendarCheck2}
           loading={loading}
-          error={!!err}
+          error={errors.employees}
         />
         <KPICard
           title="Payslips pending approval"
@@ -159,7 +178,7 @@ export default function Dashboard() {
           to="/payruns/current"
           icon={FileSignature}
           loading={loading}
-          error={!!err}
+          error={errors.employees}
         />
         <KPICard
           title="Leave requests awaiting review"
@@ -167,7 +186,7 @@ export default function Dashboard() {
           to="/leaves"
           icon={AlarmClockCheck}
           loading={loading}
-          error={!!err}
+          error={errors.employees}
         />
       </div>
 
@@ -217,8 +236,8 @@ export default function Dashboard() {
               {loading
                 ? "…"
                 : nextHoliday
-                ? `${nextHoliday.name} — ${formatDate(nextHoliday.date)}`
-                : "None in the next 60 days"}
+                  ? `${nextHoliday.name} — ${formatDate(nextHoliday.date)}`
+                  : "None in the next 60 days"}
             </div>
           </div>
         </div>

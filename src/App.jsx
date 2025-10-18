@@ -5,7 +5,10 @@ import ProtectedRoute from "./components/ProtectedRoute";
 import Layout from "./components/Layout";
 
 const  Dashboard      = lazy( () => import("./pages/Dashboard"));
-const  Employees       = lazy( () => import("./pages/Employees"));
+const  Employees      = lazy( () => import("./pages/Employees"));
+const PayRunCurrent    = lazy(() => import("./pages/PayRunCurrent"));
+const TimesheetsImport = lazy(() => import("./pages/TimesheetsImport"));
+const History          = lazy(() => import("./pages/History"));
 const  Login          = lazy( () => import("./pages/Login"));
 const  Payslip        = lazy( () =>import("./pages/Payslip"));
 const  Leaves         = lazy( () => import("./pages/Leaves"));
@@ -40,7 +43,10 @@ function App() {
                     <Route element={<ProtectedRoute><Layout /></ProtectedRoute>}>
                       <Route path="/dashboard" element={<Dashboard />} />
                       <Route path="/employees" element={<Employees />} />
+                      <Route path="/payruns/current" element={<PayRunCurrent/>}/>
+                      <Route path="/timesheets/import" element={<TimesheetsImport/>}/>
                       <Route path="/payslip" element={<Payslip />} />
+                      <Route path="/history" element={<History />} />
                       <Route path="/leaves" element={<Leaves />} />
                       <Route path="/deductions" element={<Deductions />} />
                       <Route
