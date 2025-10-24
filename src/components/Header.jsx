@@ -86,7 +86,7 @@ export default function Header({ onMenuClick }) {
                 aria-expanded={open}
                 onClick={() => {
                   console.log("open->", !open);
-                   if (hoverTimeoutRef.current) clearTimeout(hoverTimeoutRef.current);
+                  if (hoverTimeoutRef.current) clearTimeout(hoverTimeoutRef.current);
                   setOpen((v) => !v);
                 }}
                 onKeyDown={handleMenuKeyDown}
@@ -108,6 +108,14 @@ export default function Header({ onMenuClick }) {
                 >
                   Profile
                 </button>
+                <button
+                  role="menuitem"
+                  onClick={() => navigate("/account/change-password")}
+                  className="w-full text-left px-3 py-2 hover:bg-gray-100 dark:hover:bg-gray-700 text-sm"
+                >
+                  Change password
+                </button>
+
                 <button
                   role="menuitem"
                   onClick={() => { setOpen(false); logout(); }}

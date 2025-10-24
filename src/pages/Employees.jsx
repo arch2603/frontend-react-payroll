@@ -1,55 +1,6 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
-
-// async function api(path, opts = {}) {
-//   const token = localStorage.getItem("token");
-//   const res = await fetch(`/api${path}`, {
-//     ...opts,
-//     headers: {
-//       ...(opts.headers || {}),
-//       Authorization: token ? `Bearer ${token}` : undefined,
-//     },
-//     credentials: "include",
-//   });
-//   if (!res.ok) throw new Error(`${opts.method || "GET"} ${path} ${res.status}`);
-//   return res.json();
-// }
-
-async function api(path, opts = {}) {
-  const token = localStorage.getItem("token");
-  const url = `/api${path}`;
-
-  const res = await fetch(url, {
-    ...opts,
-    headers: {
-      ...(opts.headers || {}),
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
-      "Accept": "application/json",
-    },
-    credentials: "include",
-  });
-
-  const text = await res.text(); // read once
-  let json;
-  try { json = text ? JSON.parse(text) : null; } catch { json = null; }
-
-  if (!res.ok) {
-    // Show everything to the console so we can see the real issue
-    console.error("API ERROR:", {
-      url,
-      status: res.status,
-      statusText: res.statusText,
-      responseBody: json || text,
-      headers: Object.fromEntries(res.headers.entries()),
-    });
-    const message = (json && (json.message || json.error)) || `${opts.method || "GET"} ${path} ${res.status}`;
-    throw new Error(message);
-  }
-
-  // happy path
-  return json;
-}
-
+import { api } from "../lib/api"
 
 export default function Employees() {
   const [rows, setRows] = useState([]);
@@ -57,11 +8,15 @@ export default function Employees() {
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState(null);
 
+  console.log("api baseURL =", api.defaults.baseURL);
+
   useEffect(() => {
     let ignore = false;
     setLoading(true);
-    api(`/employees?limit=50&search=${encodeURIComponent(q)}`)
-      .then((data) => {
+    //api(`/employees?limit=50&search=${encodeURIComponent(q)}`)
+    api
+      .get("/employees", { params: { limit: 50, search: q, _: Date.now()}})
+      .then(({ data } ) => {
         const items = data?.items ?? data?.rows ?? data?.employees ?? data ?? [];
         if (!ignore) setRows(Array.isArray(items) ? items : [])
       })
@@ -116,7 +71,7 @@ export default function Employees() {
                   <td className="px-4 py-2">{e.firstname} {e.lastname}</td>
                   <td className="px-4 py-2">{e.email}</td>
                   <td className="px-4 py-2">{e.employeeNumber || "—"}</td>
-                  <td className="px-4 py-2">{e.is_active ? "Active" : "Inactive"}</td>
+                  <td className="px-4 py-2">{e.status ? "Active" : "Inactive"}</td>
                   <td className="px-4 py-2 text-right">
                     <button
                       className="text-blue-600 hover:underline"

@@ -188,6 +188,15 @@ export default function Dashboard() {
           loading={loading}
           error={errors.employees}
         />
+        <KPICard
+          title="Payroll"
+          value="View"
+          to="/payroll/view"
+          icon={FileSignature}
+          loading={false}
+          error={false}
+        />
+
       </div>
 
       {/* Shortcuts */}
@@ -217,6 +226,12 @@ export default function Dashboard() {
             className="inline-flex items-center gap-2 px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-700 hover:bg-gray-100 dark:hover:bg-gray-800"
           >
             <UserPlus className="h-4 w-4" /> New Employee
+          </button>
+          <button
+            onClick={() => navigate("/payroll/view")}
+            className="inline-flex items-center gap-2 px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-700 hover:bg-gray-100 dark:hover:bg-gray-800"
+          >
+            <FileSignature className="h-4 w-4" /> Payroll View
           </button>
         </div>
       </Section>

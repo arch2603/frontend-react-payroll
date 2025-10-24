@@ -1,6 +1,7 @@
 import { useState } from "react";
-import axios from "axios";
-import { useNavigate } from "react-router-dom";
+// import axios from "axios";
+import { authApi } from "../lib/api";
+import { Link, useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 
 export default function Login() {
@@ -12,21 +13,22 @@ export default function Login() {
   const navigate = useNavigate();
   const [loading, setLoading] = useState(false);
 
-  const BACKEND_URL = "http://192.168.1.120:5000";
-
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError(null);
+    setLoading(true);
     try {
-      const res = await axios.post(`${BACKEND_URL}/auth/login`, {
+      console.log("Login.jsx ... line 21... authApi baseURL =", authApi.defaults.baseURL);
+      const res = await authApi.post("/auth/login", {
         username,
         password
-
-      }, { withCredentials: true });
-      login(res.data.token, res.data.role);
+      });
+      await login(res.data.token, res.data.user?.role);
       navigate("/dashboard");
     } catch (err) {
       setError(err.response?.data?.message || "Login failed");
+    } finally {
+      setLoading(false);   // ✅ add this
     }
   };
 
@@ -51,6 +53,7 @@ export default function Login() {
                        focus-visible:outline-none
                        focus-visible:border-emerald-500
                        focus-visible:ring-2 focus-visible:ring-emerald-500"
+            autoComplete="username"
           />
         </div>
 
@@ -70,6 +73,7 @@ export default function Login() {
                        focus-visible:outline-none
                        focus-visible:border-emerald-500
                        focus-visible:ring-2 focus-visible:ring-emerald-500 pr-16"
+            autoComplete="password"
           />
           <button
             type="button"
@@ -84,7 +88,6 @@ export default function Login() {
         </div>
 
         <button
-          type="submit"
           disabled={!username || !password}
           className="bg-blue-600 text-white px-4 py-3 mb-4
                      rounded w-full hover:bg-blue-700 
@@ -93,6 +96,11 @@ export default function Login() {
           {loading ? "Signing in…" : "Login"}
         </button>
       </form>
+      <div className="text-sm mt-2">
+        <Link className="text-blue-600 hover:underline" to="/forgot-password">
+          Forgot your password?
+        </Link>
+      </div>
     </div>
   );
 }
