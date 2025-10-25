@@ -1,4 +1,15 @@
-export default function PasswordRequirements({ currentPassword, newPassword, confirm, rules }) {
+export default function PasswordRequirements({ currentPassword, newPassword, confirm, incomingRules }) {
+  const rules = incomingRules ?? {
+    minLen: newPassword.length >= 8,
+    upper: /[A-Z]/.test(newPassword),
+    lower: /[a-z]/.test(newPassword),
+    digit: /\d/.test(newPassword),
+    special: /[^A-Za-z0-9]/.test(newPassword),
+    notSameAsCurrent:
+      currentPassword ? newPassword && newPassword !== currentPassword : true,
+    match: newPassword && confirm && newPassword === confirm,
+  };
+
   const Item = ({ ok, children }) => (
     <li className={`text-sm ${ok ? "text-emerald-600" : "text-gray-600"}`}>
       <span className={`inline-block w-4`}>

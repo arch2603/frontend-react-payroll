@@ -24,6 +24,7 @@ const UserManagement = lazy(() => import("./pages/UserManagement"));
 const ChangePassword = lazy(() => import("./pages/auth/ChangePassword"));
 const ForgotPassword = lazy(() => import("./pages/auth/ForgotPassword"));
 const ResetPassword = lazy(() => import("./pages/auth/ResetPassword"));
+const ResetWithOtp = lazy(() => import("./pages/auth/ResetWithOtp"));
 
 function Fallback() {
   return <div className="p-6 text-sm opacity-80">Loading…</div>;
@@ -44,7 +45,8 @@ export default function App() {
                   <Route path="/login" element={<Login />} />
                   <Route path="/forgot-password" element={<ForgotPassword />} />
                   <Route path="/reset-password" element={<ResetPassword />} />
-
+                  <Route path="/reset-with-otp" element={<ResetWithOtp />} />
+                  
                   {/* Authenticated (everything inside uses the app chrome/Layout) */}
                   <Route element={<ProtectedRoute><Layout /></ProtectedRoute>}>
                     <Route path="/dashboard" element={<Dashboard />} />

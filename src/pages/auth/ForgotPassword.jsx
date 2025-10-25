@@ -1,33 +1,47 @@
 import { useState } from "react";
-import { requestPasswordReset } from "../../lib/api";
+import { useNavigate } from "react-router-dom";
+import { requestPasswordReset, requestPasswordOtp } from "../../lib/api";
 
 export default function ForgotPassword() {
-  const [email, setEmail] = useState("");
+  const [mode, setMode] = useState("link"); // 'link' | 'otp'
+  const [identifier, setIdentifier] = useState("");
   const [sent, setSent] = useState(false);
   const [loading, setLoading] = useState(false);
   const [err, setErr] = useState("");
+  const navigate = useNavigate();
 
   const onSubmit = async (e) => {
     e.preventDefault();
-    const val = email.trim();
-    if(!val) { 
+    const val = identifier.trim();
+    if (!val) {
       setErr("PLease enter your email");
       return;
     }
-    
+
     setErr(""); setLoading(true);
     try {
-      await requestPasswordReset(val);
-      setSent(true);                // Always show success
+      const payload = val.includes("@") ? { email: val.trim() } : { username: val.trim() };
+      if (mode === "link") {
+        await requestPasswordReset(payload);
+        setSent(true);
+      } else {
+        await requestPasswordOtp(payload);
+        // go to OTP page and prefill the identifier
+        navigate(`/reset-with-otp?id=${encodeURIComponent(val)}`);
+      }
     } catch (e) {
-      // Still show success to the user to prevent account enumeration
-      setSent(true);
+      if (mode === "link") {
+        setSent(true);
+        setSent(true);
+      } else {
+        setErr("Something went wrong. Please try again.");
+      }
     } finally {
       setLoading(false);
     }
   };
 
-  if (sent) {
+  if (sent && mode === "link") {
     return (
       <div className="max-w-md mx-auto p-6">
         <h1 className="text-xl font-semibold">Check your email</h1>
@@ -41,18 +55,39 @@ export default function ForgotPassword() {
   return (
     <form onSubmit={onSubmit} className="max-w-md mx-auto p-6 space-y-4">
       <h1 className="text-xl font-semibold">Forgot your password?</h1>
+      <div className="flex gap-2">
+        <button
+          type="button"
+          onClick={() => setMode("link")}
+          className={`px-3 py-2 rounded ${mode === "link" ? "bg-blue-600 text-white" : "bg-gray-200"}`}
+          aria-pressed={mode === "link"}
+        >
+          Email link
+        </button>
+        <button
+          type="button"
+          onClick={() => setMode("otp")}
+          className={`px-3 py-2 rounded ${mode === "otp" ? "bg-blue-600 text-white" : "bg-gray-200"}`}
+          aria-pressed={mode === "otp"}
+        >
+          OTP code
+        </button>
+      </div>
       <input
-        type="email"
+        type="text"
         required
-        value={email}
-        onChange={(e) => setEmail(e.target.value)}
-        placeholder="you@example.com"
+        value={identifier}
+        onChange={(e) => setIdentifier(e.target.value)}
+        placeholder="you@example.com or your username"
         className="w-full border rounded px-3 py-2"
-        
+        autoComplete="username email"
+        aria-label="Email or username"
       />
+
       {err && <div className="text-red-600 text-sm">{err}</div>}
+
       <button disabled={loading} className="w-full rounded bg-blue-600 text-white py-2">
-        {loading ? "Sending…" : "Send reset link"}
+        {loading ? (mode === "link" ? "Sending…" : "Requesting code…") : (mode === "link" ? "Send reset link" : "Send OTP code")}
       </button>
     </form>
   );

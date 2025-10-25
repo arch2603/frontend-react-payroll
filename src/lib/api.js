@@ -79,19 +79,19 @@ export async function loginUser({ username, password }) {
   return data;
 }
 
-export const requestPasswordReset = async (email) => {
-  return authApi.post("/auth/request-password-reset", {email});
+export const requestPasswordReset = async (payload) => {
+  return authApi.post("/auth/request-password-reset", {payload});
 }
 
 export const resetPassword = async ({ token, password }) => {
   return authApi.post("/auth/reset-password", { token, password });
 };
 
-export const requestPasswordOtp = async (emailOrUsername) => {
-  return authApi.post("/auth/request-password-otp", emailOrUsername);
+export const requestPasswordOtp = async (payload) => {
+  return authApi.post("/auth/request-password-otp", payload);
 };
 
-export const resetPasswordWithOtp = asyn = ({ emailOrUsername, otp, password}) => {
+export const resetPasswordWithOtp = async ({ emailOrUsername, otp, password}) => {
   return authApi.post("/auth/reset-password-otp", {emailOrUsername, otp, password});
 };
 
