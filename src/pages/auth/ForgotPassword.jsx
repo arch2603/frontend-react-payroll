@@ -14,7 +14,7 @@ export default function ForgotPassword() {
     e.preventDefault();
     const val = identifier.trim();
     if (!val) {
-      setErr("PLease enter your email");
+      setErr("Please enter your email or username");
       return;
     }
 
@@ -26,13 +26,12 @@ export default function ForgotPassword() {
         setSent(true);
       } else {
         await requestPasswordOtp(payload);
-        // go to OTP page and prefill the identifier
         navigate(`/reset-with-otp?id=${encodeURIComponent(val)}`);
       }
     } catch (e) {
       if (mode === "link") {
         setSent(true);
-        setSent(true);
+
       } else {
         setErr("Something went wrong. Please try again.");
       }
@@ -42,11 +41,12 @@ export default function ForgotPassword() {
   };
 
   if (sent && mode === "link") {
+    const shown = identifier.trim();
     return (
       <div className="max-w-md mx-auto p-6">
         <h1 className="text-xl font-semibold">Check your email</h1>
         <p className="mt-2 text-sm text-gray-600">
-          If an account exists for <strong>{email}</strong>, you’ll receive a password reset link.
+          If an account exists for <strong>{/\S+@\S+\.\S+/.test(shown) ? shown : `username “${shown}”`}</strong>, you’ll receive a password reset link.
         </p>
       </div>
     );

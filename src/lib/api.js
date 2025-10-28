@@ -80,7 +80,7 @@ export async function loginUser({ username, password }) {
 }
 
 export const requestPasswordReset = async (payload) => {
-  return authApi.post("/auth/request-password-reset", {payload});
+  return authApi.post("/auth/request-password-reset", payload);
 }
 
 export const resetPassword = async ({ token, password }) => {
@@ -94,4 +94,12 @@ export const requestPasswordOtp = async (payload) => {
 export const resetPasswordWithOtp = async ({ emailOrUsername, otp, password}) => {
   return authApi.post("/auth/reset-password-otp", {emailOrUsername, otp, password});
 };
+
+export async function patchLineHours(lineId, hours) {
+  const { data } = await api.patch(`/pay-runs/current/items/${lineId}`, { hours });
+  return data;
+};
+
+
+
 

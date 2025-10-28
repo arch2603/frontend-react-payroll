@@ -1,19 +1,21 @@
 import { useEffect, useState } from "react";
+import { api } from "../lib/api";
 
-async function api(path, opts = {}) {
-  const token = localStorage.getItem("token");
-  const res = await fetch(`/api${path}`, {
-    ...opts,
-    headers: {
-      ...(opts.headers || {}),
-      Authorization: token ? `Bearer ${token}` : undefined,
-      "Content-Type": opts.body instanceof FormData ? undefined : "application/json",
-    },
-    credentials: "include",
-  });
-  if (!res.ok) throw new Error(`${opts.method || "GET"} ${path} ${res.status}`);
-  return res.json();
-}
+
+// async function api(path, opts = {}) {
+//   const token = localStorage.getItem("token");
+//   const res = await fetch(`/api${path}`, {
+//     ...opts,
+//     headers: {
+//       ...(opts.headers || {}),
+//       Authorization: token ? `Bearer ${token}` : undefined,
+//       "Content-Type": opts.body instanceof FormData ? undefined : "application/json",
+//     },
+//     credentials: "include",
+//   });
+//   if (!res.ok) throw new Error(`${opts.method || "GET"} ${path} ${res.status}`);
+//   return res.json();
+// }
 
 export default function PayRunCurrent() {
   const [data, setData] = useState(null);
@@ -23,8 +25,8 @@ export default function PayRunCurrent() {
   async function load() {
     try {
       setErr(null);
-      const res = await api("/pay-runs/current");
-      setData(res);
+      const { data } = await api.get("/pay-runs/current");
+      setData(data);
     } catch (e) {
       setErr(e);
     }
@@ -35,7 +37,7 @@ export default function PayRunCurrent() {
   async function act(path) {
     setBusy(true);
     try {
-      await api(path, { method: "POST" });
+      await api.post(path);
       await load();
     } finally {
       setBusy(false);

@@ -8,7 +8,7 @@ import AppErrorBoundary from "./components/AppErrorBoundary";
 // You can lazy-load these too for consistency
 const Dashboard = lazy(() => import("./pages/Dashboard"));
 const Employees = lazy(() => import("./pages/Employees"));
-const PayRunCurrent = lazy(() => import("./pages/PayRunCurrent"));
+const PayRunCurrent = lazy(() => import("./pages/payrun/PayRunCurrent"));
 const TimesheetsImport = lazy(() => import("./pages/TimesheetsImport"));
 const History = lazy(() => import("./pages/History"));
 const Login = lazy(() => import("./pages/Login"));
@@ -17,7 +17,7 @@ const Leaves = lazy(() => import("./pages/Leaves"));
 const Deductions = lazy(() => import("./pages/Deductions"));
 const Admin = lazy(() => import("./pages/AdminDashboard"));
 const NotFound = lazy(() => import("./pages/NotFound"));
-const PayrollView = lazy(() => import("./pages/PayrollView"));
+const PayrollView = lazy(() => import("./pages/payrun/PayrollView"));
 const UserManagement = lazy(() => import("./pages/UserManagement"));
 
 // Auth pages (keep as eager or lazy—your call)
