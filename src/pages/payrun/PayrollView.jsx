@@ -4,6 +4,7 @@ import { api } from "../../lib/api";
 
 
 
+
 function toMoney(n) { return `$${Number(n ?? 0).toFixed(2)}`; }
 
 export default function PayrollView() {
@@ -14,6 +15,7 @@ export default function PayrollView() {
   const [editing, setEditing] = useState({}); // line_id -> { hours: "xx", dirty: bool }
   const acRef = useRef(null);
   const saveTimer = useRef(null);
+  
 
   // abort helper
   const abortInFlight = () => { if (acRef.current) acRef.current.abort(); acRef.current = new AbortController(); return acRef.current.signal; };

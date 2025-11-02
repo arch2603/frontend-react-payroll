@@ -1,12 +1,13 @@
 // Minimal mock / tiny wrapper. Replace with axios/fetch to your backend.
 import axios from "axios";
 
-//const API_ROOT = '/api';
+// ROOT = http://host:port (no trailing /api here)
 const ROOT = import.meta.env.VITE_API_URL || "http://192.168.1.120:5000";
 
+// ---- Axios instances ----
 export const authApi = axios.create({
   baseURL: ROOT,
-  withCredentials: true
+  withCredentials: true,
 });
 
 export const api = axios.create({
@@ -14,7 +15,12 @@ export const api = axios.create({
   withCredentials: true,
 });
 
+// ---- Interceptors (Bearer token if available) ----
+export function authHeader(config) {
 
+    const token = localStorage.getItem("token");
+    return token ? { Authorization: `Bearer ${token}` } : {};
+}
 api.interceptors.request.use((config) => {
   const token = localStorage.getItem("token");
   if (token) {
@@ -46,60 +52,72 @@ api.interceptors.response.use(
   }
 )
 
-export function authHeader() {
-  const token = localStorage.getItem("token");
-  return token ? { Authorization: `Bearer ${token}` } : {};
-}
+export const resetPasswordWithOtp = async ({ emailOrUsername, otp, password }) => {
+  return authApi.post("/auth/reset-password-otp", { emailOrUsername, otp, password });
+};
+// ---------------------------------------------------------------------------
 
+// ---- Pay Run API (full set) ----
+export const payRunApi = {
+  // Summary & items
+  getCurrent: () => api.get("/pay-runs/current"),
+  getSummary: () => api.get("/pay-runs/current/summary"),
+  getItems: (params = { search: "", limit: 25, offset: 0 }) =>
+    api.get("/pay-runs/current/items", { params }),
 
+  // State transitions
+  start: () => api.post("/pay-runs/current/start"),
+  recalc: () => api.post("/pay-runs/current/recalculate"),
+  approve: () => api.post("/pay-runs/current/approve"),
+  post: () => api.post("/pay-runs/current/post"),
 
-export async function fetchRecentPayslips(limit = 5) {
-  const { data } = await api.get("/payslips/recent", { params: { limit } });
-  return Array.isArray(data) ? data : data.items ?? [];
-}
+  // Item CRUD
+  createItem: (payload) => api.post("/pay-runs/current/items", payload),
+  patchItem: (id, patch) => api.patch(`/pay-runs/current/items/${id}`, patch),
+  deleteItem: (id) => api.delete(`/pay-runs/current/items/${id}`),
 
-export async function fetchLeaveBalances() {
-  return Promise.resolve({ annual: 12, sick: 8, bereavement: 5 });
-}
+  // Imports
+  importTimesheets: (file, mapping) => {
+    const formData = new FormData();
+    formData.append("file", file);
+    if (mapping) formData.append("mapping", JSON.stringify(mapping));
+    return api.post("/timesheets/import", formData);
+  },
 
-export async function fetchUsers() {
-  const { data } = await api.get("/users");
-  // Expect { items: [...] }
-  return data.items ?? [];
-}
-
-export async function createUser(payload) {
-  const created = { user_id: Date.now(), ...payload, created_at: new Date().toISOString() };
-  return Promise.resolve(created);
-}
-
-export async function loginUser({ username, password }) {
-  const { data } = await authApi.post("/auth/login", { username, password });
-  // data: { token, role, user? }
-  return data;
-}
-
-export const requestPasswordReset = async (payload) => {
-  return authApi.post("/auth/request-password-reset", payload);
-}
-
-export const resetPassword = async ({ token, password }) => {
-  return authApi.post("/auth/reset-password", { token, password });
+  // Exports (payslips list, bank/super files as blob)
+  getPayslips: () => api.get("/pay-runs/current/exports/payslips"),
+  getBankFile: () => api.get("/pay-runs/current/exports/bank-file", { responseType: "blob" }),
+  getSuperFile: () => api.get("/pay-runs/current/exports/super-file", { responseType: "blob" }),
 };
 
-export const requestPasswordOtp = async (payload) => {
-  return authApi.post("/auth/request-password-otp", payload);
-};
+// ---- Backward-compatible helpers ----
 
-export const resetPasswordWithOtp = async ({ emailOrUsername, otp, password}) => {
-  return authApi.post("/auth/reset-password-otp", {emailOrUsername, otp, password});
-};
-
+// You already had this; preserved as-is:
 export async function patchLineHours(lineId, hours) {
   const { data } = await api.patch(`/pay-runs/current/items/${lineId}`, { hours });
-  return data;
+  return data; // { item } optional
+}
+
+// Generic patch for multiple fields (hours, ot_hours, allowance, deductions)
+export async function patchItemFields(id, patch) {
+  const { data } = await api.patch(`/pay-runs/current/items/${id}`, patch);
+  return data; // { item } optional
+}
+
+// ---- Small utility to download blobs (bank/super files) ----
+export function downloadBlob(blob, filename = "download") {
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
+}
+
+export const payPeriodApi = {
+  list: () => api.get("/pay-periods"),
+  create: (payload) => api.post("/pay-periods", payload),
+  setCurrent: (id) => api.post(`/pay-periods/${id}/set-current`),
 };
-
-
-
-

@@ -7,7 +7,7 @@ export default function PayRunTable({ lines, onUpdate }) {
   const [draftHours, setDraftHours] = useState("");
 
   const beginEdit = (line) => {
-    setEditing(line.line_id);
+    setEditing(line.line_id ?? line.id);
     setDraftHours(String(line.hours ?? 0));
   };
 
@@ -31,10 +31,11 @@ export default function PayRunTable({ lines, onUpdate }) {
     }
 
     // optimistic update
-    onUpdate((prev) =>
-      prev.map((l) => (l.line_id === line.line_id ? { ...l, hours: next } : l))
-    );
+    const keyEq = (l) => (l.line_id ?? l.id) === (line.line_id ?? line.id);
+    onUpdate((prev) => prev.map((l) => (keyEq(l) ? { ...l, hours: next } : l)));
 
+    const res = await patchLineHours(line.line_id ?? line.id, next);
+    prev.map((l) => ((l.line_id ?? l.id) === (line.line_id ?? line.id) ? { ...l, hours: line.hours } : l))
     try {
       const res = await patchLineHours(line.line_id, next);
       if (res?.item) {
