@@ -104,7 +104,7 @@ export const payRunApi = {
   },
 
   // Exports (payslips list, bank/super files as blob)
-  getPayslips: () => api.get("/pay-runs/current/exports/payslips"),
+  getPayslips: () => api.get("/pay-runs/current/exports/payslips", { responseType: "blob" }),
   getBankFile: () => api.get("/pay-runs/current/exports/bank-file", { responseType: "blob" }),
   getSuperFile: () => api.get("/pay-runs/current/exports/super-file", { responseType: "blob" }),
   stpPreview: () => api.get("/pay-runs/current/export/stp-preview"),
