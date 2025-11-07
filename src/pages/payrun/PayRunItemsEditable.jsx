@@ -1,47 +1,229 @@
+import { useMemo, useState, useRef } from "react";
+import { payRunApi} from "../../lib/api";
 
-import { useMemo, useState } from "react";
-import { patchItemFields } from "../../lib/api";
+/**
+ * PayRunItemsEditableHybrid
+ * - Uses Code-2's column-driven structure and optimistic partial updates
+ * - Brings in Code-1's formatting, conditional OT column, and per-row Recalc
+ * - Robust parsing, no-op guard, a11y, and graceful error handling
+ *
+ * Props:
+ *   status:        'None' | 'Draft' | 'Approved' | 'Posted'
+ *   items:         Array<PayRunItem>
+ *   onPatched?:    (updatedRow) => void            // preferred; keep state in parent authoritative
+ *   onReload?:     () => Promise<void>             // optional fallback reload on failure
+ *   allowRecalc?:  boolean                          // show per-row recalc button
+ *
+ * API expectations:
+ *   PayRunAPI.patchItem(id, body)  -> returns { data: UpdatedRow }
+ *   PayRunAPI.recalcItem?(id)      -> returns { data: UpdatedRow } (optional)
+ *   If no recalcItem, we will call patchItem(id, { _recalc: true }) as a fallback.
+ */
 
-export default function PayRunItemsEditable({ status, rows, onReload, canEdit = true }) {
-  const editable = canEdit && status === "Draft";
-  const hasOt = useMemo(() => rows?.some(r => r?.ot_hours !== undefined && r?.ot_hours !== null), [rows]);
+const EDITABLE_FIELDS = ["hours", "allowance", "deductions", "super", "tax", "note", "ot_15_hours", "ot_20_hours"]; // 'rate' typically computed; include if your model allows editing
 
-  async function saveField(row, field, value) {
-    const id = row.id ?? row.line_id; // support both shapes
-    const patch = {};
-    patch[field] = value === "" ? 0 : Number(value);
-    await patchItemFields(id, patch);
+const fmtMoney = (v) =>
+  new Intl.NumberFormat("en-AU", { style: "currency", currency: "AUD" }).format(Number(v ?? 0));
+
+const fmtNum = (v) =>
+  Number(v ?? 0).toLocaleString(undefined, {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  });
+
+function isFiniteNum(x) {
+  return typeof x === "number" && Number.isFinite(x);
+}
+
+function parseCell(key, raw) {
+  if (key === "note") return String(raw ?? "");
+  // Treat empty as null (let server decide) rather than 0 to avoid accidental zeroing
+  if (raw === "" || raw == null) return null;
+  const n = typeof raw === "number" ? raw : parseFloat(String(raw).trim());
+  return Number.isFinite(n) ? n : null;
+}
+
+export default function PayRunItemsEditable({
+  status,
+  items = [],
+  onPatched,
+  onReload,
+  allowRecalc = true,
+}) {
+  const isDraft = status === "Draft";
+  const [savingId, setSavingId] = useState(null); // which row is saving
+  const [errMap, setErrMap] = useState({}); // { [rowId]: string }
+  const lastCommittedRef = useRef({}); // track last committed values to support Escape revert
+
+  const hasOt = useMemo(
+    () => items?.some(r => ( r?.ot_15_hours ?? 0 ) > 0 || (r?.ot_20_hours ?? 0 ) > 0 ),
+    [items]
+  );
+
+  const baseCols = useMemo(
+    () => [
+      { key: "employeeName", label: "Employee" },
+      { key: "hours", label: "Hours", editable: true, type: "number" },
+      // hourlyRate displayed (non-editable) if present
+      { key: "hourlyRate", label: "Rate", format: "money" },
+      { key: "allowance", label: "Allowance", editable: true, type: "money" },
+      { key: "deductions_total", label: "Deductions", editable: true, type: "money" },
+      { key: "super", label: "Super", editable: true, type: "money" },
+      { key: "ot_15_hours", label: "Time and half", editable: true, type: "money" },
+      { key: "ot_20_hours", label: "Double Time", editable: true, type: "money" },
+      { key: "tax", label: "Tax", editable: true, type: "money" },
+      { key: "gross", label: "Gross", format: "money" },
+      { key: "net", label: "Net", format: "money" },
+      
+    ],
+    []
+  );
+
+  const OT_COLS = [
+  { key: "ot_15_hours", label: "OT 1.5 Hours", editable: true, type: "number" },
+  { key: "ot_20_hours", label: "OT 2.0 Hours", editable: true, type: "number" }
+];
+
+  const columns = useMemo(() => {
+    const cols = [...baseCols];
+    if (hasOt) { 
+      cols.splice(2, 0, ...OT_COLS);
+    }
+      return cols;
+  }, [baseCols, hasOt]);
+
+  async function applyPatch(id, body) {
+    const updated= await payRunApi.patchItem(id, body);
+    await onPatched?.(updated);
+    return updated;
+  }
+
+  async function saveCell(row, key, raw) {
+    if (!EDITABLE_FIELDS.includes(key)) return;
+    if (!isDraft) return;
+
+    const id = row.id;
+    const parsed = parseCell(key, raw);
+
+    // No-op guard – only issue a PATCH if value changed
+    const current = row?.[key];
+    const same = key === "note"
+      ? String(current ?? "") === String(parsed ?? "")
+      : Number(current ?? 0) === Number(parsed ?? 0);
+    if (same) return;
+
+    try {
+      setErrMap((m) => ({ ...m, [id]: undefined }));
+      setSavingId(id);
+      const updated = await applyPatch(id, { [key]: parsed });
+      // Keep an after-commit snapshot for Escape revert behavior
+      lastCommittedRef.current[id] = {
+        ...(lastCommittedRef.current[id] || {}),
+        [key]: updated?.[key],
+      };
+    } catch (e) {
+      const msg = e?.response?.data?.message || e?.message || "Failed to save";
+      setErrMap((m) => ({ ...m, [id]: msg }));
+      // Optional: reload to re-sync view with server truth
+      if (onReload) {
+        try { await onReload(); } catch {}
+      }
+    } finally {
+      setSavingId(null);
+    }
+  }
+
+  async function recalcRow(row) {
+    const id = row.id;
+    try {
+      setErrMap((m) => ({ ...m, [id]: undefined }));
+      setSavingId(id);
+      let data;
+      if (typeof payRunApi.recalc === "function") {
+        ({ data } = await payRunApi.recalcItem(id));
+      } else {
+        ({ data } = await payRunApi.patchItem(id, { _recalc: true }));
+      }
+      await onPatched?.(data);
+    } catch (e) {
+      const msg = e?.response?.data?.message || e?.message || "Failed to recalc";
+      setErrMap((m) => ({ ...m, [id]: msg }));
+      if (onReload) {
+        try { await onReload(); } catch {}
+      }
+    } finally {
+      setSavingId(null);
+    }
   }
 
   return (
-    <div className="overflow-x-auto">
+    <div className="overflow-x-auto rounded border">
       <table className="min-w-full text-sm">
-        <thead className="bg-gray-50 dark:bg-gray-800">
+        <thead className="bg-gray-50">
           <tr>
-            <Th>Employee</Th>
-            <Th align="right">Hours</Th>
-            {hasOt && <Th align="right">OT Hours</Th>}
-            <Th align="right">Allowance</Th>
-            <Th align="right">Deductions</Th>
-            <Th align="right">Super</Th>
-            <Th align="right">Tax</Th>
-            <Th align="right">Gross</Th>
-            <Th align="right">Net</Th>
-            <Th>Actions</Th>
+            {columns.map((c) => (
+              <th
+                key={c.key}
+                scope="col"
+                className={`px-3 py-2 font-semibold ${c.type === "number" || c.format === "money" ? "text-right" : "text-left"}`}
+              >
+                {c.label}
+              </th>
+            ))}
+            {allowRecalc && <th scope="col" className="px-3 py-2 text-left">Actions</th>}
           </tr>
         </thead>
         <tbody>
-          {rows?.length ? rows.map((r) => (
-            <Row
-              key={r.id ?? r.line_id}
-              row={r}
-              editable={editable}
-              hasOt={hasOt}
-              onSave={saveField}
-              onReload={onReload}
-            />
-          )) : (
-            <tr><td colSpan={10} className="px-4 py-6 text-center opacity-70">No employees in this pay run yet.</td></tr>
+          {items?.length ? (
+            items.map((row) => (
+              <tr key={row.id} className="border-t" aria-busy={savingId === row.id}>
+                {columns.map((col) => {
+                  const val = row[col.key];
+                  const editable = isDraft && col.editable;
+                  const right = col.type === "number" || col.format === "money";
+
+                  const display = col.format === "money" ? fmtMoney(val)
+                    : col.type === "number" ? fmtNum(val)
+                    : String(val ?? "");
+
+                  return (
+                    <td key={col.key} className={`px-3 py-1 ${right ? "text-right" : "text-left"}`}>
+                      {editable ? (
+                        <CellEditor
+                          row={row}
+                          col={col}
+                          initialValue={val}
+                          disabled={savingId === row.id}
+                          onCommit={(raw) => saveCell(row, col.key, raw)}
+                        />
+                      ) : (
+                        <span>{display}</span>
+                      )}
+                    </td>
+                  );
+                })}
+                {allowRecalc && (
+                  <td className="px-3 py-1">
+                    <button
+                      className="px-2 py-1 rounded border text-slate-700 hover:bg-slate-50 disabled:opacity-50"
+                      disabled={!isDraft || savingId === row.id}
+                      onClick={() => recalcRow(row)}
+                    >
+                      Recalc
+                    </button>
+                    {errMap[row.id] && (
+                      <div className="mt-1 text-xs text-red-600" aria-live="polite">{errMap[row.id]}</div>
+                    )}
+                  </td>
+                )}
+              </tr>
+            ))
+          ) : (
+            <tr>
+              <td colSpan={columns.length + (allowRecalc ? 1 : 0)} className="px-4 py-6 text-center opacity-70">
+                No employees in this pay run yet.
+              </td>
+            </tr>
           )}
         </tbody>
       </table>
@@ -49,103 +231,30 @@ export default function PayRunItemsEditable({ status, rows, onReload, canEdit = 
   );
 }
 
-function Th({ children, align = "left" }) {
-  return <th className={`px-3 py-2 text-${align} font-semibold`}>{children}</th>;
-}
+function CellEditor({ row, col, initialValue, disabled, onCommit }) {
+  const ref = useRef(null);
+  const isText = col.type === "text";
+  const isNumber = col.type === "number" || col.type === "money";
+  const width = col.wide ? "w-48" : isText ? "w-48" : "w-24";
 
-function Td({ children, align = "left" }) {
-  return <td className={`px-3 py-2 text-${align}`}>{children}</td>;
-}
-
-function Num({ v }) {
-  const n = Number(v ?? 0);
-  return n.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-}
-
-function Money({ v }) {
-  const n = Number(v ?? 0);
-  return new Intl.NumberFormat("en-AU", { style: "currency", currency: "AUD" }).format(n);
-}
-
-function EditableNumber({ value, onCommit, className = "w-24" }) {
-  const [draft, setDraft] = useState(value ?? "");
   return (
     <input
-      className={`border rounded px-2 py-1 text-right ${className}`}
-      type="number"
-      step="0.01"
-      value={draft}
-      onChange={(e) => setDraft(e.target.value)}
-      onBlur={() => onCommit(draft)}
-      onKeyDown={(e) => { if (e.key === "Enter") e.currentTarget.blur(); }}
+      ref={ref}
+      className={`border rounded px-2 py-1 ${isNumber ? "text-right" : "text-left"} ${width}`}
+      type={isText ? "text" : "number"}
+      step={isNumber ? "0.01" : undefined}
+      defaultValue={initialValue ?? ""}
+      aria-invalid={undefined}
+      disabled={disabled}
+      onBlur={(e) => onCommit?.(e.target.value)}
+      onKeyDown={(e) => {
+        if (e.key === "Enter") e.currentTarget.blur();
+        if (e.key === "Escape") {
+          // revert display to last committed value, if tracked, else initial
+        if (ref.current) ref.current.value = initialValue ?? "";
+          e.currentTarget.blur();
+        }
+      }}
     />
-  );
-}
-
-function Row({ row, editable, hasOt, onSave, onReload }) {
-  const [saving, setSaving] = useState(false);
-  const id = row.id ?? row.line_id;
-
-  async function commit(field, value) {
-    if (!editable) return;
-    setSaving(true);
-    try {
-      await onSave(row, field, value);
-      await onReload();
-    } finally {
-      setSaving(false);
-    }
-  }
-
-  return (
-    <tr className={`${saving ? "opacity-60" : ""} border-t dark:border-gray-800`}>
-      <Td>{row.employeeName ?? row.employee_name ?? `#${row.employee_id}`}</Td>
-
-      <Td align="right">
-        {editable
-          ? <EditableNumber value={row.hours} onCommit={(v) => commit("hours", v)} />
-          : <Num v={row.hours} />
-        }
-      </Td>
-
-      {hasOt && (
-        <Td align="right">
-          {editable
-            ? <EditableNumber value={row.ot_hours} onCommit={(v) => commit("ot_hours", v)} />
-            : <Num v={row.ot_hours} />
-          }
-        </Td>
-      )}
-
-      <Td align="right">
-        {editable
-          ? <EditableNumber className="w-28" value={row.allowance} onCommit={(v) => commit("allowance", v)} />
-          : <Money v={row.allowance} />
-        }
-      </Td>
-
-      <Td align="right">
-        {editable
-          ? <EditableNumber className="w-28" value={row.deductions} onCommit={(v) => commit("deductions", v)} />
-          : <Money v={row.deductions} />
-        }
-      </Td>
-
-      <Td align="right"><Money v={row.super} /></Td>
-      <Td align="right"><Money v={row.tax} /></Td>
-      <Td align="right"><Money v={row.gross} /></Td>
-      <Td align="right"><Money v={row.net} /></Td>
-
-      <Td>
-        {/* per-row recalc button if your backend supports it */}
-        <button
-          className="px-2 py-1 rounded border text-slate-700 hover:bg-slate-50 disabled:opacity-50"
-          disabled={!editable || saving}
-          onClick={async () => { await commit("_recalc", true); }}
-        >
-          Recalc
-        </button>
-      </Td>
-    </tr>
   );
 }

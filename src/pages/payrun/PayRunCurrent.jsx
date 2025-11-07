@@ -26,6 +26,7 @@ function fmtDate(d) {
 export default function PayRunCurrent() {
   const [summary, setSummary] = useState(null);
   const [items, setItems] = useState([]);
+  const [validations, setValidations] = useState(null);
   const [paging, setPaging] = useState({
     search: "",
     limit: 10,
@@ -72,10 +73,21 @@ export default function PayRunCurrent() {
     }
   }
 
+  async function loadValidations() {
+    try {
+      const { data } = await payRunApi.getValidation();
+      setValidations(data);
+    } catch (e) {
+      // don’t blow up the page if backend returns 500
+      console.warn("validation load failed", e);
+      setValidations(null);
+    }
+  }
+
   async function reload() {
     setErr("");
     try {
-      await Promise.all([loadSummary(), loadItems()]);
+      await Promise.all([loadSummary(), loadItems(), loadValidations()]);
     } catch (e) {
       console.error(e);
       setErr("Failed to load current pay run.");
@@ -135,6 +147,13 @@ export default function PayRunCurrent() {
   }
 
   async function doApprove() {
+    if (validations && validations.ok === false) {
+      alert(
+        "You have validation errors:\n" +
+        (validations.errors || []).join("\n")
+      );
+      return;
+    }
     if (!confirm("Approve this pay run? This will lock regular edits.")) return;
     setBusy(true);
     setErr("");
@@ -142,8 +161,10 @@ export default function PayRunCurrent() {
       await payRunApi.approve();
       await reload();
     } catch (e) {
-      console.error(e);
-      setErr(e?.response?.data?.message || "Approve failed.");
+      const msg = e?.response?.data?.message || e.message || "Approve failed";
+      console.error(msg);
+      alert(msg);
+      setErr(msg);
     } finally {
       setBusy(false);
     }
@@ -265,15 +286,15 @@ export default function PayRunCurrent() {
           </button>
         </div>
       </div>
-      
+
       {summary?.status === "None" && (
-            <div className="mb-3 rounded bg-amber-50 text-amber-800 px-3 py-2 text-sm">
-              This period has no pay run yet.
-              <button onClick={doStart} className="ml-2 underline">
-                Start pay run now
-              </button>
-            </div>
-          )}
+        <div className="mb-3 rounded bg-amber-50 text-amber-800 px-3 py-2 text-sm">
+          This period has no pay run yet.
+          <button onClick={doStart} className="ml-2 underline">
+            Start pay run now
+          </button>
+        </div>
+      )}
       {/* Actions */}
       <div className="rounded-xl border dark:border-gray-700 p-4 bg-white dark:bg-gray-900 mb-4">
         <div className="flex items-center gap-2">
@@ -314,6 +335,24 @@ export default function PayRunCurrent() {
                 className="px-3 py-1.5 rounded bg-indigo-600 text-white text-sm"
               >
                 Post (Generate Payslips)
+              </button>
+              <button
+                disabled={busy}
+                onClick={async () => {
+                  if(!confirm("Reopen this pay run to Draft")) return;
+                  setBusy(true);
+                  try {
+                    await payRunApi.updateStatus("Draft", {allowApprovedDraft: true});
+                    await reload();
+                  }catch (e) {
+                    alert(e?.response?.data?.message || "Failed to reopen to Draft")
+                  }finally {
+                    setBusy(false);
+                  }
+                }}
+                className="px-3 py-1.5 rounded border border-gray-300 dark:border-gray-700 text-sm"
+              >
+                  Reopen to Draft
               </button>
               <button
                 onClick={exportBankFile}
@@ -359,7 +398,7 @@ export default function PayRunCurrent() {
             </>
           )}
 
-          
+
 
           {/* search */}
           <form onSubmit={onSearchSubmit} className="ml-auto flex items-center gap-2">
@@ -376,13 +415,39 @@ export default function PayRunCurrent() {
         </div>
       </div>
 
+      {validations && (
+        validations.ok ? (
+          <div className="mb-3 rounded bg-green-50 text-green-800 px-3 py-2 text-sm">
+            No validation errors. You can approve this run.
+          </div>
+        ) : (
+          <div className="mb-3 rounded bg-red-50 text-red-800 px-3 py-2 text-sm space-y-1">
+            <p className="font-semibold">Validation issues</p>
+            <ul className="list-disc pl-5">
+              {(validations.errors || []).map((msg, idx) => (
+                <li key={idx}>{msg}</li>
+              ))}
+            </ul>
+            <p className="text-xs text-red-500">
+              Fix the rows above (hours/rate/missing rate) then click Recalculate.
+            </p>
+          </div>
+        )
+      )}
+
       {/* TABLE (your existing table; swap for editable when ready) */}
       <div className="rounded-xl border dark:border-gray-700 overflow-x-auto bg-white dark:bg-gray-900 text-sm">
         <PayRunItemsEditable
-          status={status}
-          rows={items}
-          onReload={reload}
-          canEdit={true}
+          status={summary?.status}
+          items={items}
+          onPatched={(updatedRow) => {
+            // update your local state with the returned row
+            setItems(prev =>
+              prev.map(it => it.id === updatedRow.id ? updatedRow : it)
+            );
+          }}
+          onReload={reload}          // optional: your existing refetch
+        // remove if you don’t wan
         />
       </div>
 

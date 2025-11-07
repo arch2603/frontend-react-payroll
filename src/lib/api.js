@@ -3,60 +3,72 @@ import axios from "axios";
 
 // ROOT = http://host:port (no trailing /api here)
 const ROOT = import.meta.env.VITE_API_URL || "http://192.168.1.120:5000";
+const API_BASE = `${ROOT}/api`;
+const TOKEN_KEY = "token";
+
+const getToken = () => localStorage.getItem(TOKEN_KEY);
+const clearAuth = () => {
+  localStorage.removeItem(TOKEN_KEY);
+  localStorage.removeItem("role");
+};
+
+const isAuthError = (status) => status === 401 || status === 403;
+
+const goLogin = () => {
+  if (window.location.pathname !== "/login") {
+    window.location.replace("/login");
+  }
+};
 
 // ---- Axios instances ----
-export const authApi = axios.create({
-  baseURL: ROOT,
-  withCredentials: true,
-});
+function makeClient(baseURL) {
+  const client = axios.create({
+    baseURL,
+    withCredentials: true,
+    timeout: 20000,
+  });
 
-export const api = axios.create({
-  baseURL: `${ROOT}/api`,
-  withCredentials: true,
-});
-
-// ---- Interceptors (Bearer token if available) ----
-export function authHeader(config) {
-
-    const token = localStorage.getItem("token");
-    return token ? { Authorization: `Bearer ${token}` } : {};
-}
-api.interceptors.request.use((config) => {
-  const token = localStorage.getItem("token");
-  if (token) {
-    config.headers.Authorization = `Bearer ${token}`
-  }
-  return config;
-});
-
-authApi.interceptors.request.use((config) => {
-  const token = localStorage.getItem("token");
-  if (token) {
-    config.headers.Authorization = `Bearer ${token}`;
-  }
-  return config;
-});
-
-api.interceptors.response.use(
-  (res) => res,
-  (err) => {
-    const status = err?.response?.status;
-    if (status === 401 || status === 403) {
-      localStorage.removeItem("token");
-      localStorage.removeItem("role");
-      if (window.location.pathname !== "/login") {
-        window.location.replace("/login");
-      }
+  client.interceptors.request.use((config) => {
+    const token = getToken();
+    if (token) {
+      config.headers.Authorization = `Bearer ${token}`
     }
-    return Promise.reject(err);
-  }
-)
+    return config;
+  });
+
+  client.interceptors.response.use(
+    (res) => res,
+    async (err) => {
+      const status = err?.response?.status;
+      if (isAuthError(status)) {
+        try {
+          clearAuth();
+          goLogin();
+          if (window.location.pathname !== "/login") {
+            window.location.replace("/login");
+          }
+        } catch {
+          clearAuth();
+          goLogin();
+        }
+
+      }
+      return Promise.reject(err);
+    }
+  );
+  return client;
+}
+
+
+export const authApi = makeClient(ROOT);     // /auth/... routes
+export const api = makeClient(API_BASE); //
 
 export const resetPasswordWithOtp = async ({ emailOrUsername, otp, password }) => {
   return authApi.post("/auth/reset-password-otp", { emailOrUsername, otp, password });
 };
 // ---------------------------------------------------------------------------
 
+const unwarp = p => p.then(r => r.data);
 // ---- Pay Run API (full set) ----
 export const payRunApi = {
   // Summary & items
@@ -64,16 +76,23 @@ export const payRunApi = {
   getSummary: () => api.get("/pay-runs/current/summary"),
   getItems: (params = { search: "", limit: 25, offset: 0 }) =>
     api.get("/pay-runs/current/items", { params }),
+  getValidation: () => api.get("/pay-runs/current/validation"),
 
   // State transitions
   start: () => api.post("/pay-runs/current/start"),
   recalc: () => api.post("/pay-runs/current/recalculate"),
+  recalcItem: () => api.post("/pay-runs/current/recalculate"),
   approve: () => api.post("/pay-runs/current/approve"),
   post: () => api.post("/pay-runs/current/post"),
+  updateStatus: (status, opts = {}) => api.patch('/pay-runs/current/status', { status, ...opts }),
+
 
   // Item CRUD
   createItem: (payload) => api.post("/pay-runs/current/items", payload),
-  patchItem: (id, patch) => api.patch(`/pay-runs/current/items/${id}`, patch),
+  patchItem: async (id, patch) => {
+    const { data } = await api.patch(`/pay-runs/current/items/${id}`, patch);
+    return data?.line ?? data;
+  },
   deleteItem: (id) => api.delete(`/pay-runs/current/items/${id}`),
 
   // Imports
@@ -88,20 +107,19 @@ export const payRunApi = {
   getPayslips: () => api.get("/pay-runs/current/exports/payslips"),
   getBankFile: () => api.get("/pay-runs/current/exports/bank-file", { responseType: "blob" }),
   getSuperFile: () => api.get("/pay-runs/current/exports/super-file", { responseType: "blob" }),
+  stpPreview: () => api.get("/pay-runs/current/export/stp-preview"),
 };
 
 // ---- Backward-compatible helpers ----
-
-// You already had this; preserved as-is:
 export async function patchLineHours(lineId, hours) {
   const { data } = await api.patch(`/pay-runs/current/items/${lineId}`, { hours });
-  return data; // { item } optional
+  return data; 
 }
 
 // Generic patch for multiple fields (hours, ot_hours, allowance, deductions)
 export async function patchItemFields(id, patch) {
   const { data } = await api.patch(`/pay-runs/current/items/${id}`, patch);
-  return data; // { item } optional
+  return data?.line ?? data;
 }
 
 // ---- Small utility to download blobs (bank/super files) ----
