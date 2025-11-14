@@ -105,7 +105,7 @@ export const payRunApi = {
   },
 
   // Exports (payslips list, bank/super files as blob)
-  getPayslipInlineView:(runId, employeeId) => api.get(`/payrun/${runId}/payslip/${employeeId}`, { responseType: "blob" }),
+  getPayslipInlineView:(runId, employeeId) => api.get(`/pay-runs/current/${runId}/payslip/${employeeId}`, { responseType: "blob" }),
   getPayslipsById: (runId) => api.get(`/pay-runs/${runId}/export/payslips`, { responseType: "blob" }),
   getPayslips: () => api.get("/pay-runs/current/export/payslips", { responseType: "blob" }),
   getBankFile: (params) => api.get("/pay-runs/current/export/bank-file", { params, responseType: "blob" }),

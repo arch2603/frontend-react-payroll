@@ -1,5 +1,6 @@
 import { useMemo, useState, useRef } from "react";
-import { payRunApi} from "../../lib/api";
+import { payRunApi } from "../../lib/api";
+import PayslipPreviewModal from "./PayslipPreviewModal";
 
 
 const EDITABLE_FIELDS = ["hours", "allowance", "deductions", "super", "tax", "note", "ot_15_hours", "ot_20_hours"]; // 'rate' typically computed; include if your model allows editing
@@ -26,20 +27,38 @@ function parseCell(key, raw) {
 }
 
 export default function PayRunItemsEditable({
+
   runId,
   status,
   items = [],
   onPatched,
   onReload,
   allowRecalc = true,
+  token,          // <— add
+  apiBase,
 }) {
   const isDraft = status === "Draft";
   const [savingId, setSavingId] = useState(null); // which row is saving
   const [errMap, setErrMap] = useState({}); // { [rowId]: string }
   const lastCommittedRef = useRef({}); // track last committed values to support Escape revert
 
+  const [previewState, setPreviewState] = useState({
+    open: false,
+    employeeId: null,
+  });
+
+  const [selectedForPreview, setSelectedForPreview] = useState({});
+
+  const openPreview = (employeeId) => {
+    setPreviewState({ open: true, employeeId });
+  };
+
+  const closePreview = () => {
+    setPreviewState((prev) => ({ ...prev, open: false }));
+  };
+
   const hasOt = useMemo(
-    () => items?.some(r => ( r?.ot_15_hours ?? 0 ) > 0 || (r?.ot_20_hours ?? 0 ) > 0 ),
+    () => items?.some(r => (r?.ot_15_hours ?? 0) > 0 || (r?.ot_20_hours ?? 0) > 0),
     [items, runId]
   );
 
@@ -56,22 +75,22 @@ export default function PayRunItemsEditable({
       { key: "tax", label: "Tax", editable: true, type: "money" },
       { key: "gross", label: "Gross", format: "money" },
       { key: "net", label: "Net", format: "money" },
-      
+
     ],
     []
   );
 
   const OT_COLS = [
-  { key: "ot_15_hours", label: "OT 1.5 Hours", editable: true, type: "number" },
-  { key: "ot_20_hours", label: "OT 2.0 Hours", editable: true, type: "number" }
-];
+    { key: "ot_15_hours", label: "OT 1.5 Hours", editable: true, type: "number" },
+    { key: "ot_20_hours", label: "OT 2.0 Hours", editable: true, type: "number" }
+  ];
 
   const columns = useMemo(() => {
     const cols = [...baseCols];
-    if (hasOt) { 
+    if (hasOt) {
       cols.splice(2, 0, ...OT_COLS);
     }
-      return cols;
+    return cols;
   }, [baseCols, hasOt, runId]);
 
   // const canEdit = useMemo(() => isDraft && !!runId, [isDraft, runId]);
@@ -83,7 +102,7 @@ export default function PayRunItemsEditable({
   // }, [runId]);
 
   async function applyPatch(id, body) {
-    const updated= await payRunApi.patchItem(id, body);
+    const updated = await payRunApi.patchItem(id, body);
     await onPatched?.(updated);
     return updated;
   }
@@ -116,7 +135,7 @@ export default function PayRunItemsEditable({
       setErrMap((m) => ({ ...m, [id]: msg }));
       // Optional: reload to re-sync view with server truth
       if (onReload) {
-        try { await onReload(); } catch {}
+        try { await onReload(); } catch { }
       }
     } finally {
       setSavingId(null);
@@ -139,7 +158,7 @@ export default function PayRunItemsEditable({
       const msg = e?.response?.data?.message || e?.message || "Failed to recalc";
       setErrMap((m) => ({ ...m, [id]: msg }));
       if (onReload) {
-        try { await onReload(); } catch {}
+        try { await onReload(); } catch { }
       }
     } finally {
       setSavingId(null);
@@ -147,6 +166,7 @@ export default function PayRunItemsEditable({
   }
 
   return (
+  <>  
     <div className="overflow-x-auto rounded border">
       <table className="min-w-full text-sm">
         <thead className="bg-gray-50">
@@ -160,6 +180,7 @@ export default function PayRunItemsEditable({
                 {c.label}
               </th>
             ))}
+            <th scope="col" className="px-3 py-2 text-left">Preview</th>
             {allowRecalc && <th scope="col" className="px-3 py-2 text-left">Actions</th>}
           </tr>
         </thead>
@@ -174,7 +195,7 @@ export default function PayRunItemsEditable({
 
                   const display = col.format === "money" ? fmtMoney(val)
                     : col.type === "number" ? fmtNum(val)
-                    : String(val ?? "");
+                      : String(val ?? "");
 
                   return (
                     <td key={col.key} className={`px-3 py-1 ${right ? "text-right" : "text-left"}`}>
@@ -192,6 +213,30 @@ export default function PayRunItemsEditable({
                     </td>
                   );
                 })}
+
+                <td className="px-3 py-1">
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="checkbox"
+                      checked={!!selectedForPreview[row.id]}
+                      onChange={(e) =>
+                        setSelectedForPreview((prev) => ({
+                          ...prev,
+                          [row.id]: e.target.checked,
+                        }))
+                      }
+                    />
+                    <button
+                      type="button"
+                      className="text-blue-600 underline disabled:text-gray-400 disabled:no-underline"
+                      disabled={!selectedForPreview[row.id]}
+                      onClick={() => openPreview(row.employeeId)}
+                    >
+                      View payslip
+                    </button>
+                  </div>
+                </td>
+
                 {allowRecalc && (
                   <td className="px-3 py-1">
                     <button
@@ -218,6 +263,17 @@ export default function PayRunItemsEditable({
         </tbody>
       </table>
     </div>
+
+    <PayslipPreviewModal
+      open={previewState.open}
+      onClose={closePreview}
+      runId={runId}
+      employeeId={previewState.employeeId}
+      token={token}
+      apiBase={apiBase}
+    />
+  </>
+    
   );
 }
 
@@ -241,7 +297,7 @@ function CellEditor({ row, col, initialValue, disabled, onCommit }) {
         if (e.key === "Enter") e.currentTarget.blur();
         if (e.key === "Escape") {
           // revert display to last committed value, if tracked, else initial
-        if (ref.current) ref.current.value = initialValue ?? "";
+          if (ref.current) ref.current.value = initialValue ?? "";
           e.currentTarget.blur();
         }
       }}
