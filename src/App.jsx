@@ -7,7 +7,7 @@ import AppErrorBoundary from "./components/AppErrorBoundary";
 
 // You can lazy-load these too for consistency
 const Dashboard = lazy(() => import("./pages/Dashboard"));
-const Employees = lazy(() => import("./pages/Employees"));
+const Employees = lazy(() => import("./pages/employees/Employees"));
 const PayRunCurrent = lazy(() => import("./pages/payrun/PayRunCurrent"));
 const TimesheetsImport = lazy(() => import("./pages/TimesheetsImport"));
 const History = lazy(() => import("./pages/History"));
