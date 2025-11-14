@@ -188,13 +188,19 @@ export default function PayRunCurrent() {
   // exports
   async function exportBankFile() {
     try {
-      const { data } = await payRunApi.getBankFile();
+      const runId = summary?.run_id;
+      if (!runId) {
+        alert("No run selected or summary missing run_id");
+        return;
+      }
+      const { data } = await payRunApi.getBankFile({ run_id: runId });
       downloadBlob(data, `bank-file-${summary?.period?.start || "run"}.csv`);
     } catch (e) {
       console.error(e);
       alert(e?.response?.data?.message || "Failed to download bank file");
     }
   }
+
   async function exportSuperFile() {
     try {
       const { data } = await payRunApi.getSuperFile();
@@ -204,12 +210,23 @@ export default function PayRunCurrent() {
       alert(e?.response?.data?.message || "Failed to download super file");
     }
   }
+
   async function openPayslips() {
     try {
-      const { data } = await payRunApi.getPayslips();
-      const files = data?.files || data || [];
-      if (!files.length) return alert("No payslips available yet.");
-      files.slice(0, 10).forEach((f) => window.open(f.url || f, "_blank"));
+      const runId = summary.run_id;
+      if (!runId) {
+        alert('No run selected');
+        return;
+      }
+      const { data, headers }= await payRunApi.getPayslipsById(runId);
+
+      const cd = headers?.['content-disposition'] || '';
+      const file = /filename="([^"]+)"/i.exec(cd)
+      const filename = (file && file[1]) || `payslips-run-${runId || 'current' }.pdf`
+      // Either open in a new tab...
+      //const url = URL.createObjectURL(data, filename);
+      //window.open(url, '_blank');
+      downloadBlob(data, filename);
     } catch (e) {
       console.error(e);
       alert(e?.response?.data?.message || "Failed to fetch payslips");
@@ -248,6 +265,7 @@ export default function PayRunCurrent() {
             {summary?.period
               ? `${fmtDate(summary.period.start)} → ${fmtDate(summary.period.end)}`
               : "No open period"}
+            {summary?.run_id ? ` • Run #${summary.run_id}` : ""}
           </p>
         </div>
         <div className="flex items-center gap-3">
@@ -339,20 +357,20 @@ export default function PayRunCurrent() {
               <button
                 disabled={busy}
                 onClick={async () => {
-                  if(!confirm("Reopen this pay run to Draft")) return;
+                  if (!confirm("Reopen this pay run to Draft")) return;
                   setBusy(true);
                   try {
-                    await payRunApi.updateStatus("Draft", {allowApprovedDraft: true});
+                    await payRunApi.updateStatus("Draft", { allowApprovedDraft: true });
                     await reload();
-                  }catch (e) {
+                  } catch (e) {
                     alert(e?.response?.data?.message || "Failed to reopen to Draft")
-                  }finally {
+                  } finally {
                     setBusy(false);
                   }
                 }}
                 className="px-3 py-1.5 rounded border border-gray-300 dark:border-gray-700 text-sm"
               >
-                  Reopen to Draft
+                Reopen to Draft
               </button>
               <button
                 onClick={exportBankFile}
@@ -438,6 +456,7 @@ export default function PayRunCurrent() {
       {/* TABLE (your existing table; swap for editable when ready) */}
       <div className="rounded-xl border dark:border-gray-700 overflow-x-auto bg-white dark:bg-gray-900 text-sm">
         <PayRunItemsEditable
+          runId={summary?.run_id ?? null}
           status={summary?.status}
           items={items}
           onPatched={(updatedRow) => {

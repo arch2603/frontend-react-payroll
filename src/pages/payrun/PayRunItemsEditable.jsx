@@ -1,24 +1,6 @@
 import { useMemo, useState, useRef } from "react";
 import { payRunApi} from "../../lib/api";
 
-/**
- * PayRunItemsEditableHybrid
- * - Uses Code-2's column-driven structure and optimistic partial updates
- * - Brings in Code-1's formatting, conditional OT column, and per-row Recalc
- * - Robust parsing, no-op guard, a11y, and graceful error handling
- *
- * Props:
- *   status:        'None' | 'Draft' | 'Approved' | 'Posted'
- *   items:         Array<PayRunItem>
- *   onPatched?:    (updatedRow) => void            // preferred; keep state in parent authoritative
- *   onReload?:     () => Promise<void>             // optional fallback reload on failure
- *   allowRecalc?:  boolean                          // show per-row recalc button
- *
- * API expectations:
- *   PayRunAPI.patchItem(id, body)  -> returns { data: UpdatedRow }
- *   PayRunAPI.recalcItem?(id)      -> returns { data: UpdatedRow } (optional)
- *   If no recalcItem, we will call patchItem(id, { _recalc: true }) as a fallback.
- */
 
 const EDITABLE_FIELDS = ["hours", "allowance", "deductions", "super", "tax", "note", "ot_15_hours", "ot_20_hours"]; // 'rate' typically computed; include if your model allows editing
 
@@ -44,6 +26,7 @@ function parseCell(key, raw) {
 }
 
 export default function PayRunItemsEditable({
+  runId,
   status,
   items = [],
   onPatched,
@@ -57,14 +40,13 @@ export default function PayRunItemsEditable({
 
   const hasOt = useMemo(
     () => items?.some(r => ( r?.ot_15_hours ?? 0 ) > 0 || (r?.ot_20_hours ?? 0 ) > 0 ),
-    [items]
+    [items, runId]
   );
 
   const baseCols = useMemo(
     () => [
       { key: "employeeName", label: "Employee" },
       { key: "hours", label: "Hours", editable: true, type: "number" },
-      // hourlyRate displayed (non-editable) if present
       { key: "hourlyRate", label: "Rate", format: "money" },
       { key: "allowance", label: "Allowance", editable: true, type: "money" },
       { key: "deductions_total", label: "Deductions", editable: true, type: "money" },
@@ -90,7 +72,15 @@ export default function PayRunItemsEditable({
       cols.splice(2, 0, ...OT_COLS);
     }
       return cols;
-  }, [baseCols, hasOt]);
+  }, [baseCols, hasOt, runId]);
+
+  // const canEdit = useMemo(() => isDraft && !!runId, [isDraft, runId]);
+
+  //  useEffect(() => {
+  //   // e.g., clear row error map, lastCommittedRef, etc., on run switch
+  //   setErrMap({});
+  //   lastCommittedRef.current = {};
+  // }, [runId]);
 
   async function applyPatch(id, body) {
     const updated= await payRunApi.patchItem(id, body);

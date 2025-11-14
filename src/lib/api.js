@@ -26,6 +26,7 @@ function makeClient(baseURL) {
     baseURL,
     withCredentials: true,
     timeout: 20000,
+    exposedHeaders: ['Content-Disposition'],
   });
 
   client.interceptors.request.use((config) => {
@@ -40,14 +41,14 @@ function makeClient(baseURL) {
     (res) => res,
     async (err) => {
       const status = err?.response?.status;
-      if (isAuthError(status)) {
+      const code = err?.response?.data?.code;
+
+      if (status === 401 && (code === 'TOKEN_EXPIRED' || code === 'TOKEN_INVALID' || code === 'NO_AUTH_HEADER' || code === 'BAD_AUTH_SCHEME')) {
         try {
-          clearAuth();
-          goLogin();
-          if (window.location.pathname !== "/login") {
-            window.location.replace("/login");
-          }
-        } catch {
+          localStorage.removeItem('jwt');
+          window.location.assign('/login'); // or trigger your refresh flow here
+          return;
+        } finally{
           clearAuth();
           goLogin();
         }
@@ -104,16 +105,18 @@ export const payRunApi = {
   },
 
   // Exports (payslips list, bank/super files as blob)
-  getPayslips: () => api.get("/pay-runs/current/exports/payslips", { responseType: "blob" }),
-  getBankFile: () => api.get("/pay-runs/current/exports/bank-file", { responseType: "blob" }),
-  getSuperFile: () => api.get("/pay-runs/current/exports/super-file", { responseType: "blob" }),
+  getPayslipInlineView:(runId, employeeId) => api.get(`/payrun/${runId}/payslip/${employeeId}`, { responseType: "blob" }),
+  getPayslipsById: (runId) => api.get(`/pay-runs/${runId}/export/payslips`, { responseType: "blob" }),
+  getPayslips: () => api.get("/pay-runs/current/export/payslips", { responseType: "blob" }),
+  getBankFile: (params) => api.get("/pay-runs/current/export/bank-file", { params, responseType: "blob" }),
+  getSuperFile: () => api.get("/pay-runs/current/export/super-file", { responseType: "blob" }),
   stpPreview: () => api.get("/pay-runs/current/export/stp-preview"),
 };
 
 // ---- Backward-compatible helpers ----
 export async function patchLineHours(lineId, hours) {
   const { data } = await api.patch(`/pay-runs/current/items/${lineId}`, { hours });
-  return data; 
+  return data;
 }
 
 // Generic patch for multiple fields (hours, ot_hours, allowance, deductions)
