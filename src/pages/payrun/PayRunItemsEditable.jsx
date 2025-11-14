@@ -93,14 +93,6 @@ export default function PayRunItemsEditable({
     return cols;
   }, [baseCols, hasOt, runId]);
 
-  // const canEdit = useMemo(() => isDraft && !!runId, [isDraft, runId]);
-
-  //  useEffect(() => {
-  //   // e.g., clear row error map, lastCommittedRef, etc., on run switch
-  //   setErrMap({});
-  //   lastCommittedRef.current = {};
-  // }, [runId]);
-
   async function applyPatch(id, body) {
     const updated = await payRunApi.patchItem(id, body);
     await onPatched?.(updated);
@@ -216,7 +208,7 @@ export default function PayRunItemsEditable({
 
                 <td className="px-3 py-1">
                   <div className="flex items-center gap-2">
-                    <input
+                    {/* <input
                       type="checkbox"
                       checked={!!selectedForPreview[row.id]}
                       onChange={(e) =>
@@ -225,11 +217,11 @@ export default function PayRunItemsEditable({
                           [row.id]: e.target.checked,
                         }))
                       }
-                    />
+                    /> */}
                     <button
                       type="button"
                       className="text-blue-600 underline disabled:text-gray-400 disabled:no-underline"
-                      disabled={!selectedForPreview[row.id]}
+                      // disabled={!selectedForPreview[row.id]}
                       onClick={() => openPreview(row.employeeId)}
                     >
                       View payslip
