@@ -1,12 +1,15 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
-import { api } from "../../lib/api"
+import { api } from "../../lib/api";
+import NewEmployeeModal from "../employees/NewEmployeeModal";
 
 export default function Employees() {
   const [rows, setRows] = useState([]);
   const [q, setQ] = useState("");
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState(null);
+  const [showNewEmployee, setShowNewEmployee] = useState(false);
+  const [reloadKey, setReloadKey] = useState(0);
 
   console.log("api baseURL =", api.defaults.baseURL);
 
@@ -15,8 +18,8 @@ export default function Employees() {
     setLoading(true);
     //api(`/employees?limit=50&search=${encodeURIComponent(q)}`)
     api
-      .get("/employees", { params: { limit: 50, search: q, _: Date.now()}})
-      .then(({ data } ) => {
+      .get("/employees", { params: { limit: 50, search: q, _: Date.now() } })
+      .then(({ data }) => {
         const items = data?.items ?? data?.rows ?? data?.employees ?? data ?? [];
         if (!ignore) setRows(Array.isArray(items) ? items : [])
       })
@@ -32,7 +35,7 @@ export default function Employees() {
         <Link
           to="/employees/new"
           className="px-3 py-2 rounded-lg bg-blue-600 text-white hover:bg-blue-700 text-sm"
-          onClick={(e) => { e.preventDefault(); alert("Stub: /employees/new form page"); }}
+          onClick={(e) => { e.preventDefault(); setShowNewEmployee(true); }}
         >
           New Employee
         </Link>
@@ -88,6 +91,15 @@ export default function Employees() {
       </div>
 
       {err && <div className="mt-3 text-sm text-red-600">Error loading employees.</div>}
+      {/* New Employee Modal */}
+      <NewEmployeeModal
+        isOpen={showNewEmployee}
+        onClose={() => setShowNewEmployee(false)}
+        onCreated={() => {
+          // triggers useEffect to refetch
+          setReloadKey((k) => k + 1);
+        }}
+      />
     </div>
   );
 }

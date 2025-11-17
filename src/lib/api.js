@@ -113,6 +113,11 @@ export const payRunApi = {
   stpPreview: () => api.get("/pay-runs/current/export/stp-preview"),
 };
 
+export const employeesApi = {
+  createEmployee: (payload) => api.post("employees/create", payload),
+  updateEmployee: (employeeId, payload) => api.patch(`employees/patch/${employeeId}`, payload)
+};
+
 // ---- Backward-compatible helpers ----
 export async function patchLineHours(lineId, hours) {
   const { data } = await api.patch(`/pay-runs/current/items/${lineId}`, { hours });
