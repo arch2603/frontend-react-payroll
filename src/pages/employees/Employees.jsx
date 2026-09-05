@@ -11,7 +11,6 @@ export default function Employees() {
   const [showNewEmployee, setShowNewEmployee] = useState(false);
   const [reloadKey, setReloadKey] = useState(0);
 
-  console.log("api baseURL =", api.defaults.baseURL);
   const navigate = useNavigate();
   
   useEffect(() => {
@@ -27,7 +26,7 @@ export default function Employees() {
       .catch((e) => !ignore && setErr(e))
       .finally(() => !ignore && setLoading(false));
     return () => { ignore = true; };
-  }, [q]);
+  }, [q, reloadKey]);
 
   return (
     <div className="p-6">

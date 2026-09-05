@@ -10,7 +10,10 @@ const PAY_CYCLES = [
   { value: "weekly", label: "Weekly" },
   { value: "fortnightly", label: "Fortnightly" },
   { value: "monthly", label: "Monthly" },
+  { value: "annual", label: "Annual" },
 ];
+
+const PAYROLL_CURRENCY = import.meta.env.VITE_PAYROLL_CURRENCY || 'WST';
 
 export default function NewEmployeeModal({ isOpen, onClose, onCreated }) {
   const [form, setForm] = useState({
@@ -23,6 +26,7 @@ export default function NewEmployeeModal({ isOpen, onClose, onCreated }) {
     tax_rate: "",
     is_active: true,
     pay_type: "hourly",
+    salary: "",
     hourly_rate: "",
     standard_hours_per_week: "38",
     pay_cycle: "weekly",
@@ -51,6 +55,7 @@ export default function NewEmployeeModal({ isOpen, onClose, onCreated }) {
         tax_rate: "",
         is_active: true,
         pay_type: "hourly",
+        salary: "",
         hourly_rate: "",
         standard_hours_per_week: "38",
         pay_cycle: "weekly",
@@ -84,8 +89,11 @@ export default function NewEmployeeModal({ isOpen, onClose, onCreated }) {
       nextErrors.employee_number = "Employee # is required";
     if (!form.position.trim()) nextErrors.position = "Position is required";
 
-    if (!form.hourly_rate || Number(form.hourly_rate) <= 0) {
+    if (form.pay_type === 'hourly' && (!form.hourly_rate || Number(form.hourly_rate) <= 0)) {
       nextErrors.hourly_rate = "Hourly rate must be greater than 0";
+    }
+    if (form.pay_type === 'salary' && (!form.salary || Number(form.salary) <= 0)) {
+      nextErrors.salary = 'Annual salary must be greater than 0';
     }
 
     if (!form.pay_cycle) nextErrors.pay_cycle = "Select a pay cycle";
@@ -113,7 +121,8 @@ export default function NewEmployeeModal({ isOpen, onClose, onCreated }) {
       const payload = {
         ...form,
         tax_rate: form.tax_rate ? Number(form.tax_rate) : null,
-        hourly_rate: Number(form.hourly_rate),
+        hourly_rate: form.pay_type === 'hourly' ? Number(form.hourly_rate) : null,
+        salary: form.pay_type === 'salary' ? Number(form.salary) : null,
         standard_hours_per_week: form.standard_hours_per_week
           ? Number(form.standard_hours_per_week)
           : null,
@@ -353,9 +362,9 @@ export default function NewEmployeeModal({ isOpen, onClose, onCreated }) {
                   </div>
                 </div>
 
-                <div>
+                {form.pay_type === 'hourly' ? <div>
                   <label className="mb-1 block text-xs font-medium text-gray-700">
-                    Hourly rate (AUD)
+                    Hourly rate ({PAYROLL_CURRENCY})
                     <span className="text-red-500">*</span>
                   </label>
                   <input
@@ -373,7 +382,22 @@ export default function NewEmployeeModal({ isOpen, onClose, onCreated }) {
                       {errors.hourly_rate}
                     </p>
                   )}
-                </div>
+                </div> : <div>
+                  <label className="mb-1 block text-xs font-medium text-gray-700">
+                    Annual salary ({PAYROLL_CURRENCY})
+                    <span className="text-red-500">*</span>
+                  </label>
+                  <input
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    name="salary"
+                    value={form.salary}
+                    onChange={handleChange}
+                    className="w-full rounded-md border px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                  />
+                  {errors.salary && <p className="mt-1 text-xs text-red-500">{errors.salary}</p>}
+                </div>}
 
                 <div>
                   <label className="mb-1 block text-xs font-medium text-gray-700">

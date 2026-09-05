@@ -2,6 +2,8 @@ import { useEffect, useState } from "react";
 import { useParams } from "react-router-dom";
 import { employeesApi } from "../../lib/api";
 
+const PAYROLL_CURRENCY = import.meta.env.VITE_PAYROLL_CURRENCY || 'WST';
+
 export default function EmployeeDetails() {
   const { id } = useParams();
   const [emp, setEmp] = useState(null);
@@ -96,7 +98,8 @@ export default function EmployeeDetails() {
         position: emp.position,
         pay_type: emp.pay_type,
         pay_cycle: emp.pay_cycle,
-        hourly_rate: emp.hourly_rate,
+        hourly_rate: emp.pay_type === 'HOURLY' ? Number(emp.hourly_rate) : null,
+        salary: emp.pay_type === 'SALARY' ? Number(emp.salary) : null,
         standard_hours_per_week: emp.standard_hours_per_week,
         tax_rate: emp.tax_rate,
         is_active: emp.is_active,
@@ -292,8 +295,6 @@ export default function EmployeeDetails() {
                   <option value="">Select pay type</option>
                   <option value="HOURLY">Hourly</option>
                   <option value="SALARY">Salary</option>
-                  <option value="CASUAL">Casual</option>
-                  <option value="CONTRACTOR">Contractor</option>
                 </select>
               </div>
 
@@ -316,20 +317,35 @@ export default function EmployeeDetails() {
                 </select>
               </div>
 
-              <div>
+              {emp.pay_type === 'SALARY' ? <div>
+                <label className={labelClass} htmlFor="salary">
+                  Annual salary ({PAYROLL_CURRENCY})
+                </label>
+                <input
+                  id="salary"
+                  name="salary"
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  value={emp.salary ?? ""}
+                  onChange={handleChange}
+                  className={inputClass}
+                />
+              </div> : <div>
                 <label className={labelClass} htmlFor="hourly_rate">
-                  Hourly rate (AUD)
+                  Hourly rate ({PAYROLL_CURRENCY})
                 </label>
                 <input
                   id="hourly_rate"
                   name="hourly_rate"
                   type="number"
                   step="0.01"
+                  min="0"
                   value={emp.hourly_rate ?? ""}
                   onChange={handleChange}
                   className={inputClass}
                 />
-              </div>
+              </div>}
 
               <div>
                 <label className={labelClass} htmlFor="standard_hours_per_week">
