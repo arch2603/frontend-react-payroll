@@ -7,6 +7,7 @@ import AppErrorBoundary from "./components/AppErrorBoundary";
 
 // You can lazy-load these too for consistency
 const Dashboard = lazy(() => import("./pages/Dashboard"));
+const EmployeeDetails = lazy(() => import("./pages/employees/EmployeeDetails"));
 const Employees = lazy(() => import("./pages/employees/Employees"));
 const PayRunCurrent = lazy(() => import("./pages/payrun/PayRunCurrent"));
 const TimesheetsImport = lazy(() => import("./pages/TimesheetsImport"));
@@ -51,6 +52,7 @@ export default function App() {
                   <Route element={<ProtectedRoute><Layout /></ProtectedRoute>}>
                     <Route path="/dashboard" element={<Dashboard />} />
                     <Route path="/employees" element={<Employees />} />
+                    <Route path="/employees/:id" element={<EmployeeDetails />} />
                     <Route path="/payruns/current" element={<PayRunCurrent />} />
                     <Route path="/timesheets/import" element={<TimesheetsImport />} />
                     <Route path="/payslip" element={<Payslip />} />

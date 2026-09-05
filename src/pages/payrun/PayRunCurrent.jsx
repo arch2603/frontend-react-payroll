@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { payRunApi, payPeriodApi, downloadBlob } from "../../lib/api";
 import PayRunItemsEditable from "./PayRunItemsEditable";
+import SamoaSummaryCard from "../../components/SamoaSummaryCard";
 
 const moneyFmt = new Intl.NumberFormat("en-AU", {
   style: "currency",
@@ -42,6 +43,14 @@ export default function PayRunCurrent() {
   const [showPeriods, setShowPeriods] = useState(false);
 
   const status = summary?.status ?? "None";
+
+  // Convenience: pull totals safely
+  const totals = summary?.totals || {};
+  const totalEmployees = totals.employees ?? 0;
+  const totalGross = totals.gross ?? 0;
+  const totalTax = totals.tax ?? 0;
+  const totalDeductions = totals.deductions ?? 0;
+  const totalNet = totals.net ?? 0;
 
   // ---- loaders ----
   async function loadSummary() {
@@ -150,7 +159,7 @@ export default function PayRunCurrent() {
     if (validations && validations.ok === false) {
       alert(
         "You have validation errors:\n" +
-        (validations.errors || []).join("\n")
+          (validations.errors || []).join("\n")
       );
       return;
     }
@@ -203,7 +212,7 @@ export default function PayRunCurrent() {
 
   async function exportSuperFile() {
     try {
-      const { data } = await payRunApi.getSuperFile();
+      const { data } = await payRunApi.getSuperFile("/pay-runs/current/export/super-file");
       downloadBlob(data, `super-file-${summary?.period?.start || "run"}.csv`);
     } catch (e) {
       console.error(e);
@@ -215,17 +224,17 @@ export default function PayRunCurrent() {
     try {
       const runId = summary.run_id;
       if (!runId) {
-        alert('No run selected');
+        alert("No run selected");
         return;
       }
-      const { data, headers }= await payRunApi.getPayslipsById(runId);
+      const { data, headers } = await payRunApi.getPayslipsById(runId);
 
-      const cd = headers?.['content-disposition'] || '';
-      const file = /filename="([^"]+)"/i.exec(cd)
-      const filename = (file && file[1]) || `payslips-run-${runId || 'current' }.pdf`
-      // Either open in a new tab...
-      //const url = URL.createObjectURL(data, filename);
-      //window.open(url, '_blank');
+      const cd = headers?.["content-disposition"] || "";
+      const file = /filename="([^"]+)"/i.exec(cd);
+      const filename =
+        (file && file[1]) ||
+        `payslips-run-${runId || "current"}.pdf`;
+
       downloadBlob(data, filename);
     } catch (e) {
       console.error(e);
@@ -242,7 +251,10 @@ export default function PayRunCurrent() {
   }
 
   function changePage(delta) {
-    const next = Math.max(0, (paging.offset || 0) + delta * (paging.limit || 10));
+    const next = Math.max(
+      0,
+      (paging.offset || 0) + delta * (paging.limit || 10)
+    );
     loadItems({ offset: next });
   }
 
@@ -258,17 +270,20 @@ export default function PayRunCurrent() {
   return (
     <div className="p-6">
       {/* Header with period selector */}
-      <div className="mb-4 flex items-center justify-between gap-4">
+      <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h2 className="text-2xl font-bold">Current Pay Run</h2>
           <p className="text-sm opacity-75">
             {summary?.period
-              ? `${fmtDate(summary.period.start)} → ${fmtDate(summary.period.end)}`
+              ? `${fmtDate(summary.period.start)} → ${fmtDate(
+                  summary.period.end
+                )}`
               : "No open period"}
             {summary?.run_id ? ` • Run #${summary.run_id}` : ""}
           </p>
         </div>
-        <div className="flex items-center gap-3">
+
+        <div className="flex flex-wrap items-center gap-3">
           {/* period selector */}
           <select
             value={selectedPeriodId || ""}
@@ -292,7 +307,21 @@ export default function PayRunCurrent() {
           </select>
 
           <span className="text-sm opacity-75">Status:</span>
-          <span className="px-2 py-1 rounded bg-gray-100 dark:bg-gray-800 text-sm">
+          <span
+            className={[
+              "px-2 py-1 rounded text-sm font-medium",
+              status === "Draft" &&
+                "bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-200",
+              status === "Approved" &&
+                "bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-200",
+              status === "Posted" &&
+                "bg-indigo-100 text-indigo-800 dark:bg-indigo-900/40 dark:text-indigo-200",
+              status === "None" &&
+                "bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-200",
+            ]
+              .filter(Boolean)
+              .join(" ")}
+          >
             {status}
           </span>
 
@@ -305,6 +334,56 @@ export default function PayRunCurrent() {
         </div>
       </div>
 
+      {/* NEW: Totals strip */}
+      {summary?.totals && (
+        <div className="mb-4 grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2 text-xs sm:text-sm">
+          <div className="rounded-lg border border-gray-200 dark:border-gray-700 px-3 py-2 bg-white dark:bg-gray-900">
+            <div className="uppercase tracking-wide text-[0.7rem] text-gray-500 dark:text-gray-400">
+              Employees
+            </div>
+            <div className="text-base font-semibold">
+              {totalEmployees}
+            </div>
+          </div>
+
+          <div className="rounded-lg border border-gray-200 dark:border-gray-700 px-3 py-2 bg-white dark:bg-gray-900">
+            <div className="uppercase tracking-wide text-[0.7rem] text-gray-500 dark:text-gray-400">
+              Gross
+            </div>
+            <div className="text-base font-semibold">
+              {money(totalGross)}
+            </div>
+          </div>
+
+          <div className="rounded-lg border border-gray-200 dark:border-gray-700 px-3 py-2 bg-white dark:bg-gray-900">
+            <div className="uppercase tracking-wide text-[0.7rem] text-gray-500 dark:text-gray-400">
+              Tax
+            </div>
+            <div className="text-base font-semibold">
+              {money(totalTax)}
+            </div>
+          </div>
+
+          <div className="rounded-lg border border-gray-200 dark:border-gray-700 px-3 py-2 bg-white dark:bg-gray-900">
+            <div className="uppercase tracking-wide text-[0.7rem] text-gray-500 dark:text-gray-400">
+              Deductions
+            </div>
+            <div className="text-base font-semibold">
+              {money(totalDeductions)}
+            </div>
+          </div>
+
+          <div className="rounded-lg border border-gray-200 dark:border-gray-700 px-3 py-2 bg-white dark:bg-gray-900">
+            <div className="uppercase tracking-wide text-[0.7rem] text-gray-500 dark:text-gray-400">
+              Net
+            </div>
+            <div className="text-base font-semibold">
+              {money(totalNet)}
+            </div>
+          </div>
+        </div>
+      )}
+
       {summary?.status === "None" && (
         <div className="mb-3 rounded bg-amber-50 text-amber-800 px-3 py-2 text-sm">
           This period has no pay run yet.
@@ -313,9 +392,10 @@ export default function PayRunCurrent() {
           </button>
         </div>
       )}
+
       {/* Actions */}
       <div className="rounded-xl border dark:border-gray-700 p-4 bg-white dark:bg-gray-900 mb-4">
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           {status === "None" && (
             <button
               disabled={busy}
@@ -360,10 +440,15 @@ export default function PayRunCurrent() {
                   if (!confirm("Reopen this pay run to Draft")) return;
                   setBusy(true);
                   try {
-                    await payRunApi.updateStatus("Draft", { allowApprovedDraft: true });
+                    await payRunApi.updateStatus("Draft", {
+                      allowApprovedDraft: true,
+                    });
                     await reload();
                   } catch (e) {
-                    alert(e?.response?.data?.message || "Failed to reopen to Draft")
+                    alert(
+                      e?.response?.data?.message ||
+                        "Failed to reopen to Draft"
+                    );
                   } finally {
                     setBusy(false);
                   }
@@ -416,10 +501,11 @@ export default function PayRunCurrent() {
             </>
           )}
 
-
-
           {/* search */}
-          <form onSubmit={onSearchSubmit} className="ml-auto flex items-center gap-2">
+          <form
+            onSubmit={onSearchSubmit}
+            className="ml-auto flex items-center gap-2"
+          >
             <input
               name="q"
               defaultValue={paging.search || ""}
@@ -433,8 +519,8 @@ export default function PayRunCurrent() {
         </div>
       </div>
 
-      {validations && (
-        validations.ok ? (
+      {validations &&
+        (validations.ok ? (
           <div className="mb-3 rounded bg-green-50 text-green-800 px-3 py-2 text-sm">
             No validation errors. You can approve this run.
           </div>
@@ -447,26 +533,27 @@ export default function PayRunCurrent() {
               ))}
             </ul>
             <p className="text-xs text-red-500">
-              Fix the rows above (hours/rate/missing rate) then click Recalculate.
+              Fix the rows above (hours/rate/missing rate) then click
+              Recalculate.
             </p>
           </div>
-        )
-      )}
+        ))}
 
-      {/* TABLE (your existing table; swap for editable when ready) */}
+      {/* TABLE + Samoa summary */}
       <div className="rounded-xl border dark:border-gray-700 overflow-x-auto bg-white dark:bg-gray-900 text-sm">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <SamoaSummaryCard />
+        </div>
         <PayRunItemsEditable
           runId={summary?.run_id ?? null}
           status={summary?.status}
           items={items}
           onPatched={(updatedRow) => {
-            // update your local state with the returned row
-            setItems(prev =>
-              prev.map(it => it.id === updatedRow.id ? updatedRow : it)
+            setItems((prev) =>
+              prev.map((it) => (it.id === updatedRow.id ? updatedRow : it))
             );
           }}
-          onReload={reload}          // optional: your existing refetch
-        // remove if you don’t wan
+          onReload={reload}
         />
       </div>
 
@@ -485,7 +572,10 @@ export default function PayRunCurrent() {
           </button>
           <button
             onClick={() => changePage(1)}
-            disabled={(paging.offset || 0) + (paging.limit || 10) >= (paging.total || 0)}
+            disabled={
+              (paging.offset || 0) + (paging.limit || 10) >=
+              (paging.total || 0)
+            }
             className="px-3 py-1.5 rounded border border-gray-300 dark:border-gray-700 disabled:opacity-50"
           >
             Next
@@ -501,14 +591,20 @@ export default function PayRunCurrent() {
           <div className="bg-white dark:bg-gray-900 rounded-lg p-4 w-[420px] max-h-[70vh] overflow-y-auto">
             <div className="flex items-center justify-between mb-3">
               <h3 className="text-lg font-semibold">Pay Periods</h3>
-              <button onClick={() => setShowPeriods(false)} className="text-sm">
+              <button
+                onClick={() => setShowPeriods(false)}
+                className="text-sm"
+              >
                 ✕
               </button>
             </div>
 
             <ul className="space-y-2 mb-4">
               {periods.map((p) => (
-                <li key={p.id} className="flex items-center justify-between">
+                <li
+                  key={p.id}
+                  className="flex items-center justify-between"
+                >
                   <span>
                     {fmtDate(p.start_date)} → {fmtDate(p.end_date)}
                     {p.is_current && (
@@ -524,7 +620,9 @@ export default function PayRunCurrent() {
                         const { data } = await payPeriodApi.list();
                         setPeriods(data);
                         const current = data.find((x) => x.is_current);
-                        setSelectedPeriodId(current ? current.id : null);
+                        setSelectedPeriodId(
+                          current ? current.id : null
+                        );
                         await reload();
                       }}
                       className="text-xs text-blue-600"
@@ -543,8 +641,13 @@ export default function PayRunCurrent() {
                 const fd = new FormData(e.currentTarget);
                 const start_date = fd.get("start_date");
                 const end_date = fd.get("end_date");
-                const make_current = fd.get("make_current") === "on";
-                await payPeriodApi.create({ start_date, end_date, make_current });
+                const make_current =
+                  fd.get("make_current") === "on";
+                await payPeriodApi.create({
+                  start_date,
+                  end_date,
+                  make_current,
+                });
                 const { data } = await payPeriodApi.list();
                 setPeriods(data);
                 const current = data.find((x) => x.is_current);
@@ -568,7 +671,8 @@ export default function PayRunCurrent() {
                 />
               </div>
               <label className="flex items-center gap-2 text-sm">
-                <input name="make_current" type="checkbox" /> Make current
+                <input name="make_current" type="checkbox" /> Make
+                current
               </label>
               <button className="px-3 py-1.5 rounded bg-blue-600 text-white text-sm">
                 Add period
@@ -580,4 +684,3 @@ export default function PayRunCurrent() {
     </div>
   );
 }
-

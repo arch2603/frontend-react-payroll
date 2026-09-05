@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { api } from "../../lib/api";
 import NewEmployeeModal from "../employees/NewEmployeeModal";
 
@@ -12,7 +12,8 @@ export default function Employees() {
   const [reloadKey, setReloadKey] = useState(0);
 
   console.log("api baseURL =", api.defaults.baseURL);
-
+  const navigate = useNavigate();
+  
   useEffect(() => {
     let ignore = false;
     setLoading(true);
@@ -78,7 +79,7 @@ export default function Employees() {
                   <td className="px-4 py-2 text-right">
                     <button
                       className="text-blue-600 hover:underline"
-                      onClick={() => alert(`Stub: open /employees/${e.id}`)}
+                      onClick={() => navigate(`/employees/${e.id}`)}
                     >
                       View
                     </button>

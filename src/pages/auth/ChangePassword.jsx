@@ -1,6 +1,6 @@
 import React, { useState, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
-import { authApi, authHeader } from "../../lib/api";
+import { authApi} from "../../lib/api";
 import PasswordRequirements from "./PasswordRequirements";
 
 

@@ -45,7 +45,7 @@ function makeClient(baseURL) {
 
       if (status === 401 && (code === 'TOKEN_EXPIRED' || code === 'TOKEN_INVALID' || code === 'NO_AUTH_HEADER' || code === 'BAD_AUTH_SCHEME')) {
         try {
-          localStorage.removeItem('jwt');
+          clearAuth();//localStorage.removeItem('token');
           window.location.assign('/login'); // or trigger your refresh flow here
           return;
         } finally{
@@ -64,10 +64,21 @@ function makeClient(baseURL) {
 export const authApi = makeClient(ROOT);     // /auth/... routes
 export const api = makeClient(API_BASE); //
 
-export const resetPasswordWithOtp = async ({ emailOrUsername, otp, password }) => {
-  return authApi.post("/auth/reset-password-otp", { emailOrUsername, otp, password });
+// export const resetPasswordWithOtp = async ({ emailOrUsername, otp, password }) => {
+//   return authApi.post("/auth/reset-password-otp", { emailOrUsername, otp, password });
+// };
+
+export const requestPasswordReset = async (payload) => {
+  return authApi.post("/auth/request-password-reset", payload);
 };
-// ---------------------------------------------------------------------------
+
+export const requestPasswordOtp = async (payload) => {
+  return authApi.post("/auth/request-password-otp", payload);
+}
+
+export const requestPassword = async ({token, password}) => {
+  return authApi.post("/auth/reset-password", { token, password });
+}
 
 const unwarp = p => p.then(r => r.data);
 // ---- Pay Run API (full set) ----
@@ -111,13 +122,24 @@ export const payRunApi = {
   getBankFile: (params) => api.get("/pay-runs/current/export/bank-file", { params, responseType: "blob" }),
   getSuperFile: () => api.get("/pay-runs/current/export/super-file", { responseType: "blob" }),
   stpPreview: () => api.get("/pay-runs/current/export/stp-preview"),
-};
+
+  getCurrentSamoaSummary:() => api.get("/pay-runs/current/samoa-summary"),
+  getSamoaSummaryByRunId:(runId) => api.get(`/pay-runs/${runId}/samoa-summary`)
+  };
+
 
 export const employeesApi = {
+  getEmployeeById: (id) => api.get(`/employees/${id}`),
   createEmployee: (payload) => api.post("employees/create", payload),
   updateEmployee: (employeeId, payload) => api.patch(`employees/patch/${employeeId}`, payload)
 };
 
+export const fetchUsers = async () => {
+  const data = await unwarp(api.get("/users"));
+  return Array.isArray(data.items) ? data.items : [];
+}
+export const createUser = (payload) => unwarp(api.post("/users", payload));
+export const updateUser = (userId, payload) => unwarp(api.patch(`/users/${userId}`, payload));
 // ---- Backward-compatible helpers ----
 export async function patchLineHours(lineId, hours) {
   const { data } = await api.patch(`/pay-runs/current/items/${lineId}`, { hours });

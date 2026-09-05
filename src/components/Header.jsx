@@ -5,7 +5,7 @@ import { useEffect, useState, useRef } from "react";
 
 
 export default function Header({ onMenuClick }) {
-  const { auth, login, logout } = useAuth();
+  const { auth, logout } = useAuth();
   const [dark, setDark] = useState(() => document.documentElement.classList.contains("dark"));
   const [open, setOpen] = useState(false);
   const menuRef = useRef(null);
@@ -85,7 +85,6 @@ export default function Header({ onMenuClick }) {
                 aria-haspopup="menu"
                 aria-expanded={open}
                 onClick={() => {
-                  console.log("open->", !open);
                   if (hoverTimeoutRef.current) clearTimeout(hoverTimeoutRef.current);
                   setOpen((v) => !v);
                 }}
@@ -103,19 +102,11 @@ export default function Header({ onMenuClick }) {
               >
                 <button
                   role="menuitem"
-                  onClick={() => { setOpen(false); navigate("/profile"); }}
-                  className="w-full text-left px-3 py-2 hover:bg-gray-100 dark:hover:bg-gray-700 text-sm"
-                >
-                  Profile
-                </button>
-                <button
-                  role="menuitem"
-                  onClick={() => navigate("/account/change-password")}
+                  onClick={() => { setOpen(false); navigate("/account/change-password"); }}
                   className="w-full text-left px-3 py-2 hover:bg-gray-100 dark:hover:bg-gray-700 text-sm"
                 >
                   Change password
                 </button>
-
                 <button
                   role="menuitem"
                   onClick={() => { setOpen(false); logout(); }}

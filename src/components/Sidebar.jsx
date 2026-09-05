@@ -6,7 +6,6 @@ const Sidebar = ({ open, setOpen }) => {
   const { auth } = useAuth();
   const role = String(auth?.role ?? "").trim().toLowerCase();
   const canManage = role === "admin" || role === "hr";
-  console.log("Sidebar.jsx line-9... role is" + role);
   const linkClass = ({ isActive }) =>
     `block px-4 py-2 rounded mb-1 transition ${isActive
       ? "bg-blue-600 text-white"
@@ -65,7 +64,7 @@ const Sidebar = ({ open, setOpen }) => {
             )}
 
             {canManage && (
-              <NavLink to="/payroll/view" className={linkClass}><FileText className="h-4 w-4" />Payroll</NavLink>
+              <NavLink to="/payruns/current" className={linkClass}><FileText className="h-4 w-4" /> Current pay run</NavLink>
             )}
 
             {canManage && (
