@@ -3,10 +3,11 @@ import { payRunApi } from "../../lib/api";
 import PayslipPreviewModal from "./PayslipPreviewModal";
 
 
-const EDITABLE_FIELDS = ["hours", "allowance", "deductions", "super", "tax", "note", "ot_15_hours", "ot_20_hours"]; // 'rate' typically computed; include if your model allows editing
+const EDITABLE_FIELDS = ["hours", "allowance", "deductions", "tax", "note", "ot_15_hours", "ot_20_hours"];
+const PAYROLL_CURRENCY = import.meta.env.VITE_PAYROLL_CURRENCY || 'WST';
 
 const fmtMoney = (v) =>
-  new Intl.NumberFormat("en-AU", { style: "currency", currency: "AUD" }).format(Number(v ?? 0));
+  new Intl.NumberFormat(undefined, { style: "currency", currency: PAYROLL_CURRENCY }).format(Number(v ?? 0));
 
 const fmtNum = (v) =>
   Number(v ?? 0).toLocaleString(undefined, {
@@ -14,16 +15,12 @@ const fmtNum = (v) =>
     maximumFractionDigits: 2,
   });
 
-function isFiniteNum(x) {
-  return typeof x === "number" && Number.isFinite(x);
-}
-
 function parseCell(key, raw) {
   if (key === "note") return String(raw ?? "");
-  // Treat empty as null (let server decide) rather than 0 to avoid accidental zeroing
-  if (raw === "" || raw == null) return null;
+  if (raw === "" || raw == null) throw new Error('A numeric value is required');
   const n = typeof raw === "number" ? raw : parseFloat(String(raw).trim());
-  return Number.isFinite(n) ? n : null;
+  if (!Number.isFinite(n) || n < 0) throw new Error('Enter a non-negative number');
+  return n;
 }
 
 export default function PayRunItemsEditable({
@@ -31,11 +28,8 @@ export default function PayRunItemsEditable({
   runId,
   status,
   items = [],
-  onPatched,
   onReload,
   allowRecalc = true,
-  token,          // <— add
-  apiBase,
 }) {
   const isDraft = status === "Draft";
   const [savingId, setSavingId] = useState(null); // which row is saving
@@ -47,8 +41,6 @@ export default function PayRunItemsEditable({
     employeeId: null,
   });
 
-  const [selectedForPreview, setSelectedForPreview] = useState({});
-
   const openPreview = (employeeId) => {
     setPreviewState({ open: true, employeeId });
   };
@@ -57,21 +49,17 @@ export default function PayRunItemsEditable({
     setPreviewState((prev) => ({ ...prev, open: false }));
   };
 
-  const hasOt = useMemo(
-    () => items?.some(r => (r?.ot_15_hours ?? 0) > 0 || (r?.ot_20_hours ?? 0) > 0),
-    [items, runId]
-  );
-
   const baseCols = useMemo(
     () => [
       { key: "employeeName", label: "Employee" },
       { key: "hours", label: "Hours", editable: true, type: "number" },
       { key: "hourlyRate", label: "Rate", format: "money" },
       { key: "allowance", label: "Allowance", editable: true, type: "money" },
-      { key: "deductions_total", label: "Deductions", editable: true, type: "money" },
-      { key: "super", label: "Super", editable: true, type: "money" },
-      { key: "ot_15_hours", label: "Time and half", editable: true, type: "money" },
-      { key: "ot_20_hours", label: "Double Time", editable: true, type: "money" },
+      { key: "deductions", label: "Deductions", editable: true, type: "money" },
+      { key: "npfEmployee", label: "Employee NPF", type: "money" },
+      { key: "npfEmployer", label: "Employer NPF", type: "money" },
+      { key: "ot_15_hours", label: "OT 1.5 Hours", editable: true, type: "number" },
+      { key: "ot_20_hours", label: "OT 2.0 Hours", editable: true, type: "number" },
       { key: "tax", label: "Tax", editable: true, type: "money" },
       { key: "gross", label: "Gross", format: "money" },
       { key: "net", label: "Net", format: "money" },
@@ -80,22 +68,10 @@ export default function PayRunItemsEditable({
     []
   );
 
-  const OT_COLS = [
-    { key: "ot_15_hours", label: "OT 1.5 Hours", editable: true, type: "number" },
-    { key: "ot_20_hours", label: "OT 2.0 Hours", editable: true, type: "number" }
-  ];
-
-  const columns = useMemo(() => {
-    const cols = [...baseCols];
-    if (hasOt) {
-      cols.splice(2, 0, ...OT_COLS);
-    }
-    return cols;
-  }, [baseCols, hasOt, runId]);
+  const columns = baseCols;
 
   async function applyPatch(id, body) {
     const updated = await payRunApi.patchItem(id, body);
-    await onPatched?.(updated);
     return updated;
   }
 
@@ -104,19 +80,17 @@ export default function PayRunItemsEditable({
     if (!isDraft) return;
 
     const id = row.id;
-    const parsed = parseCell(key, raw);
-
-    // No-op guard – only issue a PATCH if value changed
-    const current = row?.[key];
-    const same = key === "note"
-      ? String(current ?? "") === String(parsed ?? "")
-      : Number(current ?? 0) === Number(parsed ?? 0);
-    if (same) return;
-
     try {
+      const parsed = parseCell(key, raw);
+      const current = row?.[key];
+      const same = key === "note"
+        ? String(current ?? "") === String(parsed ?? "")
+        : Number(current ?? 0) === Number(parsed ?? 0);
+      if (same) return;
       setErrMap((m) => ({ ...m, [id]: undefined }));
       setSavingId(id);
       const updated = await applyPatch(id, { [key]: parsed });
+      await onReload?.();
       // Keep an after-commit snapshot for Escape revert behavior
       lastCommittedRef.current[id] = {
         ...(lastCommittedRef.current[id] || {}),
@@ -139,13 +113,8 @@ export default function PayRunItemsEditable({
     try {
       setErrMap((m) => ({ ...m, [id]: undefined }));
       setSavingId(id);
-      let data;
-      if (typeof payRunApi.recalc === "function") {
-        ({ data } = await payRunApi.recalcItem(id));
-      } else {
-        ({ data } = await payRunApi.patchItem(id, { _recalc: true }));
-      }
-      await onPatched?.(data);
+      await payRunApi.recalcItem(id);
+      await onReload?.();
     } catch (e) {
       const msg = e?.response?.data?.message || e?.message || "Failed to recalc";
       setErrMap((m) => ({ ...m, [id]: msg }));
@@ -261,8 +230,6 @@ export default function PayRunItemsEditable({
       onClose={closePreview}
       runId={runId}
       employeeId={previewState.employeeId}
-      token={token}
-      apiBase={apiBase}
     />
   </>
     

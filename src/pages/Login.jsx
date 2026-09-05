@@ -18,12 +18,11 @@ export default function Login() {
     setError(null);
     setLoading(true);
     try {
-      console.log("Login.jsx ... line 21... authApi baseURL =", authApi.defaults.baseURL);
       const res = await authApi.post("/auth/login", {
         username,
         password
       });
-      await login(res.data.token, res.data.user?.role);
+      login(res.data.token);
       navigate("/dashboard");
     } catch (err) {
       setError(err.response?.data?.message || "Login failed");
@@ -73,7 +72,7 @@ export default function Login() {
                        focus-visible:outline-none
                        focus-visible:border-emerald-500
                        focus-visible:ring-2 focus-visible:ring-emerald-500 pr-16"
-            autoComplete="password"
+            autoComplete="current-password"
           />
           <button
             type="button"

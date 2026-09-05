@@ -1,19 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-
-async function api(path, opts = {}) {
-  const token = localStorage.getItem("token");
-  const res = await fetch(`/api${path}`, {
-    ...opts,
-    headers: {
-      ...(opts.headers || {}),
-      Authorization: token ? `Bearer ${token}` : undefined,
-      "Content-Type": opts.body instanceof FormData ? undefined : "application/json",
-    },
-    credentials: "include",
-  });
-  if (!res.ok) throw new Error(`${opts.method || "GET"} ${path} ${res.status}`);
-  return res.json();
-}
+import { api, downloadBlob } from '../lib/api';
 
 export default function History() {
   const [rows, setRows] = useState([]);
@@ -44,28 +30,21 @@ export default function History() {
   useEffect(() => {
     let ignore = false;
     setLoading(true);
-    api(`/history/payslips?${query}`)
-      .then((data) => !ignore && (setRows(data.items || [])))
+    api.get(`/history/payslips?${query}`)
+      .then(({ data }) => !ignore && setRows(data.items || []))
       .catch((e) => !ignore && setErr(e))
       .finally(() => !ignore && setLoading(false));
     return () => { ignore = true; };
   }, [query]);
 
   async function handleReprint(id) {
-    const res = await fetch(`/api/payslips/${id}/print`, {
-      method: "POST",
-      headers: { Authorization: `Bearer ${localStorage.getItem("token")}` },
-      credentials: "include",
-    });
-    const blob = await res.blob();
-    const url = URL.createObjectURL(blob);
-    window.open(url, "_blank");
+    const { data } = await api.post(`/payslips/${id}/print`, null, { responseType: 'blob' });
+    downloadBlob(data, `payslip-${id}.pdf`);
   }
 
-  function handleExportCsv() {
-    const url = `/api/history/export.csv?${query}`;
-    // Let the browser download the CSV
-    window.open(url, "_blank");
+  async function handleExportCsv() {
+    const { data } = await api.get(`/history/export.csv?${query}`, { responseType: 'blob' });
+    downloadBlob(data, 'payslip-history.csv');
   }
 
   return (

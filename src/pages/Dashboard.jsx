@@ -1,5 +1,6 @@
 import { useEffect, useState, useMemo } from "react";
 import { useNavigate, Link } from "react-router-dom";
+import { api } from '../lib/api';
 import {
   Users,
   CalendarCheck2,
@@ -46,26 +47,8 @@ function Section({ title, children, right }) {
 
 // Tiny fetch helper with AbortController
 async function apiGet(path, signal) {
-  const token = localStorage.getItem("token");
-  const res = await fetch(`/api${path}`, {
-    // headers: { Authorization: token ? `Bearer ${token}` : undefined },
-    headers: token ? { Authorization: `Bearer ${token}` } : {},
-    credentials: "include",
-    signal,
-  });
-
-  const text = await res.text();
-  let body;
-  try { body = JSON.parse(text); } catch { body = { raw: text || null }; }
-
-  if (!res.ok) {
-    const err = new Error(`GET ${path} ${res.status}`);
-    err.status = res.status;
-    err.body = body;
-    throw err;
-  }
-
-  return body;
+  const { data } = await api.get(path, { signal });
+  return data;
 }
 
 export default function Dashboard() {
@@ -106,10 +89,10 @@ export default function Dashboard() {
       const results = await Promise.allSettled([
         apiGet("/dashboard/employees/count", ac.signal),  // 0
         apiGet("/pay-runs/current/summary", ac.signal),   // 1 (may not exist yet)
-        apiGet("/payslips/pending/count", ac.signal),     // 2
-        apiGet("/leaves/pending/count", ac.signal),       // 3
-        apiGet("/audit?limit=5", ac.signal),              // 4
-        apiGet("/calendar/next-key-dates", ac.signal),
+        apiGet("/dashboard/payslips/pending/count", ac.signal), // 2
+        apiGet("/dashboard/leaves/pending/count", ac.signal),   // 3
+        apiGet("/dashboard/audit?limit=5", ac.signal),           // 4
+        apiGet("/dashboard/calendar/next-key-dates", ac.signal),
       ]);
 
       const [employeesRes, payrunRes, payslipRes, leavesRes, auditRes, calendarRes] = results;
@@ -170,15 +153,15 @@ export default function Dashboard() {
           to="/payruns/current"
           icon={CalendarCheck2}
           loading={loading}
-          error={errors.employees}
+          error={errors.payrun}
         />
         <KPICard
-          title="Payslips pending approval"
+          title="Payslips not distributed"
           value={counts.payslipsPending}
           to="/payruns/current"
           icon={FileSignature}
           loading={loading}
-          error={errors.employees}
+          error={errors.payslips}
         />
         <KPICard
           title="Leave requests awaiting review"
@@ -186,12 +169,12 @@ export default function Dashboard() {
           to="/leaves"
           icon={AlarmClockCheck}
           loading={loading}
-          error={errors.employees}
+          error={errors.leaves}
         />
         <KPICard
-          title="Payroll"
+          title="Payroll history"
           value="View"
-          to="/payroll/view"
+          to="/history"
           icon={FileSignature}
           loading={false}
           error={false}
@@ -222,16 +205,16 @@ export default function Dashboard() {
             <Upload className="h-4 w-4" /> Import Timesheets
           </button>
           <button
-            onClick={() => navigate("/employees/new")}
+            onClick={() => navigate("/employees")}
             className="inline-flex items-center gap-2 px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-700 hover:bg-gray-100 dark:hover:bg-gray-800"
           >
             <UserPlus className="h-4 w-4" /> New Employee
           </button>
           <button
-            onClick={() => navigate("/payroll/view")}
+            onClick={() => navigate("/history")}
             className="inline-flex items-center gap-2 px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-700 hover:bg-gray-100 dark:hover:bg-gray-800"
           >
-            <FileSignature className="h-4 w-4" /> Payroll View
+            <FileSignature className="h-4 w-4" /> Payroll history
           </button>
         </div>
       </Section>

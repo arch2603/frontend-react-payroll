@@ -7,7 +7,6 @@ export default function PayslipPreviewModal({
   onClose,
   runId,
   employeeId,
-  token,
 }) {
   const [blobUrl, setBlobUrl] = useState(null);
   const [err, setErr] = useState('');

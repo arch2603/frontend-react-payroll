@@ -3,9 +3,10 @@ import { payRunApi, payPeriodApi, downloadBlob } from "../../lib/api";
 import PayRunItemsEditable from "./PayRunItemsEditable";
 import SamoaSummaryCard from "../../components/SamoaSummaryCard";
 
-const moneyFmt = new Intl.NumberFormat("en-AU", {
+const PAYROLL_CURRENCY = import.meta.env.VITE_PAYROLL_CURRENCY || 'WST';
+const moneyFmt = new Intl.NumberFormat(undefined, {
   style: "currency",
-  currency: "AUD",
+  currency: PAYROLL_CURRENCY,
   minimumFractionDigits: 2,
 });
 
@@ -21,7 +22,9 @@ function num(n) {
 function fmtDate(d) {
   if (!d) return "—";
   const dt = new Date(d);
-  return dt.toLocaleDateString("en-AU", { timeZone: "Australia/Brisbane" });
+  return dt.toLocaleDateString(undefined, {
+    timeZone: import.meta.env.VITE_PAYROLL_TIMEZONE || 'Pacific/Apia',
+  });
 }
 
 export default function PayRunCurrent() {
@@ -156,10 +159,11 @@ export default function PayRunCurrent() {
   }
 
   async function doApprove() {
-    if (validations && validations.ok === false) {
+    if (!validations || validations.ok !== true) {
       alert(
-        "You have validation errors:\n" +
-          (validations.errors || []).join("\n")
+        validations
+          ? "You have validation errors:\n" + (validations.errors || []).join("\n")
+          : "Validation could not be completed. Approval is disabled."
       );
       return;
     }
@@ -180,7 +184,7 @@ export default function PayRunCurrent() {
   }
 
   async function doPost() {
-    if (!confirm("Post this pay run? This finalises the run and generates artefacts.")) return;
+    if (!confirm("Post this pay run? This finalises the run.")) return;
     setBusy(true);
     setErr("");
     try {
@@ -210,13 +214,13 @@ export default function PayRunCurrent() {
     }
   }
 
-  async function exportSuperFile() {
+  async function exportNpfFile() {
     try {
-      const { data } = await payRunApi.getSuperFile("/pay-runs/current/export/super-file");
-      downloadBlob(data, `super-file-${summary?.period?.start || "run"}.csv`);
+      const { data } = await payRunApi.getSuperFile();
+      downloadBlob(data, `npf-file-${summary?.period?.start || "run"}.csv`);
     } catch (e) {
       console.error(e);
-      alert(e?.response?.data?.message || "Failed to download super file");
+      alert(e?.response?.data?.message || "Failed to download NPF file");
     }
   }
 
@@ -432,7 +436,7 @@ export default function PayRunCurrent() {
                 onClick={doPost}
                 className="px-3 py-1.5 rounded bg-indigo-600 text-white text-sm"
               >
-                Post (Generate Payslips)
+                Post Pay Run
               </button>
               <button
                 disabled={busy}
@@ -440,9 +444,7 @@ export default function PayRunCurrent() {
                   if (!confirm("Reopen this pay run to Draft")) return;
                   setBusy(true);
                   try {
-                    await payRunApi.updateStatus("Draft", {
-                      allowApprovedDraft: true,
-                    });
+                    await payRunApi.reopen();
                     await reload();
                   } catch (e) {
                     alert(
@@ -464,10 +466,10 @@ export default function PayRunCurrent() {
                 Export Bank File
               </button>
               <button
-                onClick={exportSuperFile}
+                onClick={exportNpfFile}
                 className="px-3 py-1.5 rounded border border-gray-300 dark:border-gray-700 text-sm"
               >
-                Export Super File
+                Export NPF File
               </button>
               <button
                 onClick={openPayslips}
@@ -487,10 +489,10 @@ export default function PayRunCurrent() {
                 Export Bank File
               </button>
               <button
-                onClick={exportSuperFile}
+                onClick={exportNpfFile}
                 className="px-3 py-1.5 rounded border border-gray-300 dark:border-gray-700 text-sm"
               >
-                Export Super File
+                Export NPF File
               </button>
               <button
                 onClick={openPayslips}
@@ -548,11 +550,6 @@ export default function PayRunCurrent() {
           runId={summary?.run_id ?? null}
           status={summary?.status}
           items={items}
-          onPatched={(updatedRow) => {
-            setItems((prev) =>
-              prev.map((it) => (it.id === updatedRow.id ? updatedRow : it))
-            );
-          }}
           onReload={reload}
         />
       </div>
@@ -643,6 +640,10 @@ export default function PayRunCurrent() {
                 const end_date = fd.get("end_date");
                 const make_current =
                   fd.get("make_current") === "on";
+                if (start_date > end_date) {
+                  alert("Start date must be on or before end date.");
+                  return;
+                }
                 await payPeriodApi.create({
                   start_date,
                   end_date,
