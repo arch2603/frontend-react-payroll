@@ -1,171 +1,117 @@
-// Minimal mock / tiny wrapper. Replace with axios/fetch to your backend.
 import axios from "axios";
 
-// ROOT = http://host:port (no trailing /api here)
-const ROOT = import.meta.env.VITE_API_URL || "http://192.168.1.120:5000";
-const API_BASE = `${ROOT}/api`;
-const TOKEN_KEY = "token";
+const ROOT = String(import.meta.env.VITE_API_URL || "").replace(/\/$/, "");
+const API_BASE = ROOT ? `${ROOT}/api` : "/api";
+const AUTH_BASE = ROOT || "";
+const TOKEN_KEY = "payroll_access_token";
 
-const getToken = () => localStorage.getItem(TOKEN_KEY);
-const clearAuth = () => {
-  localStorage.removeItem(TOKEN_KEY);
-  localStorage.removeItem("role");
-};
+export const getAccessToken = () => sessionStorage.getItem(TOKEN_KEY);
+export const clearAuthSession = () => sessionStorage.removeItem(TOKEN_KEY);
+export const saveAccessToken = (token) => sessionStorage.setItem(TOKEN_KEY, token);
 
-const isAuthError = (status) => status === 401 || status === 403;
-
-const goLogin = () => {
-  if (window.location.pathname !== "/login") {
-    window.location.replace("/login");
-  }
-};
-
-// ---- Axios instances ----
 function makeClient(baseURL) {
-  const client = axios.create({
-    baseURL,
-    withCredentials: true,
-    timeout: 20000,
-    exposedHeaders: ['Content-Disposition'],
-  });
+  const client = axios.create({ baseURL, timeout: 20000 });
 
   client.interceptors.request.use((config) => {
-    const token = getToken();
-    if (token) {
-      config.headers.Authorization = `Bearer ${token}`
-    }
+    const token = getAccessToken();
+    if (token) config.headers.Authorization = `Bearer ${token}`;
     return config;
   });
 
   client.interceptors.response.use(
-    (res) => res,
-    async (err) => {
-      const status = err?.response?.status;
-      const code = err?.response?.data?.code;
-
-      if (status === 401 && (code === 'TOKEN_EXPIRED' || code === 'TOKEN_INVALID' || code === 'NO_AUTH_HEADER' || code === 'BAD_AUTH_SCHEME')) {
-        try {
-          clearAuth();//localStorage.removeItem('token');
-          window.location.assign('/login'); // or trigger your refresh flow here
-          return;
-        } finally{
-          clearAuth();
-          goLogin();
-        }
-
+    response => response,
+    error => {
+      const status = error?.response?.status;
+      const code = error?.response?.data?.code;
+      if (status === 401 && ['TOKEN_EXPIRED', 'TOKEN_INVALID', 'NO_AUTH_HEADER', 'BAD_AUTH_SCHEME'].includes(code)) {
+        clearAuthSession();
+        if (window.location.pathname !== '/login') window.location.replace('/login');
       }
-      return Promise.reject(err);
+      return Promise.reject(error);
     }
   );
   return client;
 }
 
+export const authApi = makeClient(AUTH_BASE);
+export const api = makeClient(API_BASE);
 
-export const authApi = makeClient(ROOT);     // /auth/... routes
-export const api = makeClient(API_BASE); //
+export const requestPasswordReset = payload => authApi.post('/auth/request-password-reset', payload);
+export const requestPasswordOtp = payload => authApi.post('/auth/request-password-otp', payload);
+export const resetPassword = payload => authApi.post('/auth/reset-password', payload);
+export const resetPasswordWithOtp = ({ emailOrUsername, otp, password }) =>
+  authApi.post('/auth/reset-password-otp', { emailOrUsername, otp, password });
 
-// export const resetPasswordWithOtp = async ({ emailOrUsername, otp, password }) => {
-//   return authApi.post("/auth/reset-password-otp", { emailOrUsername, otp, password });
-// };
-
-export const requestPasswordReset = async (payload) => {
-  return authApi.post("/auth/request-password-reset", payload);
-};
-
-export const requestPasswordOtp = async (payload) => {
-  return authApi.post("/auth/request-password-otp", payload);
-}
-
-export const requestPassword = async ({token, password}) => {
-  return authApi.post("/auth/reset-password", { token, password });
-}
-
-const unwarp = p => p.then(r => r.data);
-// ---- Pay Run API (full set) ----
 export const payRunApi = {
-  // Summary & items
-  getCurrent: () => api.get("/pay-runs/current"),
-  getSummary: () => api.get("/pay-runs/current/summary"),
-  getItems: (params = { search: "", limit: 25, offset: 0 }) =>
-    api.get("/pay-runs/current/items", { params }),
-  getValidation: () => api.get("/pay-runs/current/validation"),
-
-  // State transitions
-  start: () => api.post("/pay-runs/current/start"),
-  recalc: () => api.post("/pay-runs/current/recalculate"),
-  recalcItem: () => api.post("/pay-runs/current/recalculate"),
-  approve: () => api.post("/pay-runs/current/approve"),
-  post: () => api.post("/pay-runs/current/post"),
-  updateStatus: (status, opts = {}) => api.patch('/pay-runs/current/status', { status, ...opts }),
-
-
-  // Item CRUD
-  createItem: (payload) => api.post("/pay-runs/current/items", payload),
+  getCurrent: () => api.get('/pay-runs/current'),
+  getSummary: () => api.get('/pay-runs/current/summary'),
+  getItems: (params = { search: '', limit: 25, offset: 0 }) => api.get('/pay-runs/current/items', { params }),
+  getValidation: () => api.get('/pay-runs/current/validation'),
+  start: () => api.post('/pay-runs/current/start'),
+  recalc: () => api.post('/pay-runs/current/recalculate'),
+  recalcItem: (id) => api.patch(`/pay-runs/current/items/${id}`, { _recalc: true }),
+  approve: () => api.post('/pay-runs/current/approve'),
+  post: () => api.post('/pay-runs/current/post'),
+  reopen: () => api.post('/pay-runs/current/reopen'),
+  createItem: payload => api.post('/pay-runs/current/items', payload),
   patchItem: async (id, patch) => {
     const { data } = await api.patch(`/pay-runs/current/items/${id}`, patch);
     return data?.line ?? data;
   },
-  deleteItem: (id) => api.delete(`/pay-runs/current/items/${id}`),
-
-  // Imports
-  importTimesheets: (file, mapping) => {
+  deleteItem: id => api.delete(`/pay-runs/current/items/${id}`),
+  importTimesheets: file => {
     const formData = new FormData();
-    formData.append("file", file);
-    if (mapping) formData.append("mapping", JSON.stringify(mapping));
-    return api.post("/timesheets/import", formData);
+    formData.append('file', file);
+    return api.post('/pay-runs/current/import-timesheets', formData);
   },
-
-  // Exports (payslips list, bank/super files as blob)
-  getPayslipInlineView:(runId, employeeId) => api.get(`/pay-runs/current/${runId}/payslip/${employeeId}`, { responseType: "blob" }),
-  getPayslipsById: (runId) => api.get(`/pay-runs/${runId}/export/payslips`, { responseType: "blob" }),
-  getPayslips: () => api.get("/pay-runs/current/export/payslips", { responseType: "blob" }),
-  getBankFile: (params) => api.get("/pay-runs/current/export/bank-file", { params, responseType: "blob" }),
-  getSuperFile: () => api.get("/pay-runs/current/export/super-file", { responseType: "blob" }),
-  stpPreview: () => api.get("/pay-runs/current/export/stp-preview"),
-
-  getCurrentSamoaSummary:() => api.get("/pay-runs/current/samoa-summary"),
-  getSamoaSummaryByRunId:(runId) => api.get(`/pay-runs/${runId}/samoa-summary`)
-  };
-
-
-export const employeesApi = {
-  getEmployeeById: (id) => api.get(`/employees/${id}`),
-  createEmployee: (payload) => api.post("employees/create", payload),
-  updateEmployee: (employeeId, payload) => api.patch(`employees/patch/${employeeId}`, payload)
+  getPayslipInlineView: (runId, employeeId) =>
+    api.get(`/pay-runs/current/${runId}/payslip/${employeeId}`, { responseType: 'blob' }),
+  getPayslipsById: runId => api.get(`/pay-runs/${runId}/export/payslips`, { responseType: 'blob' }),
+  getPayslips: () => api.get('/pay-runs/current/export/payslips', { responseType: 'blob' }),
+  getBankFile: params => api.get('/pay-runs/current/export/bank-file', { params, responseType: 'blob' }),
+  getSuperFile: () => api.get('/pay-runs/current/export/super-file', { responseType: 'blob' }),
+  stpPreview: () => api.get('/pay-runs/current/export/stp-preview'),
+  getCurrentSamoaSummary: () => api.get('/pay-runs/current/samoa-summary'),
+  getSamoaSummaryByRunId: runId => api.get(`/pay-runs/${runId}/samoa-summary`),
 };
 
+export const employeesApi = {
+  getEmployeeById: id => api.get(`/employees/${id}`),
+  createEmployee: payload => api.post('/employees/create', payload),
+  updateEmployee: (employeeId, payload) => api.patch(`/employees/patch/${employeeId}`, payload),
+};
+
+const unwrap = promise => promise.then(response => response.data);
 export const fetchUsers = async () => {
-  const data = await unwarp(api.get("/users"));
+  const data = await unwrap(api.get('/users'));
   return Array.isArray(data.items) ? data.items : [];
-}
-export const createUser = (payload) => unwarp(api.post("/users", payload));
-export const updateUser = (userId, payload) => unwarp(api.patch(`/users/${userId}`, payload));
-// ---- Backward-compatible helpers ----
+};
+export const createUser = payload => unwrap(api.post('/users', payload));
+export const updateUser = (userId, payload) => unwrap(api.patch(`/users/${userId}`, payload));
+
 export async function patchLineHours(lineId, hours) {
   const { data } = await api.patch(`/pay-runs/current/items/${lineId}`, { hours });
   return data;
 }
 
-// Generic patch for multiple fields (hours, ot_hours, allowance, deductions)
 export async function patchItemFields(id, patch) {
   const { data } = await api.patch(`/pay-runs/current/items/${id}`, patch);
   return data?.line ?? data;
 }
 
-// ---- Small utility to download blobs (bank/super files) ----
-export function downloadBlob(blob, filename = "download") {
+export function downloadBlob(blob, filename = 'download') {
   const url = URL.createObjectURL(blob);
-  const a = document.createElement("a");
-  a.href = url;
-  a.download = filename;
-  document.body.appendChild(a);
-  a.click();
-  a.remove();
+  const anchor = document.createElement('a');
+  anchor.href = url;
+  anchor.download = filename;
+  document.body.appendChild(anchor);
+  anchor.click();
+  anchor.remove();
   URL.revokeObjectURL(url);
 }
 
 export const payPeriodApi = {
-  list: () => api.get("/pay-periods"),
-  create: (payload) => api.post("/pay-periods", payload),
-  setCurrent: (id) => api.post(`/pay-periods/${id}/set-current`),
+  list: () => api.get('/pay-periods'),
+  create: payload => api.post('/pay-periods', payload),
+  setCurrent: id => api.post(`/pay-periods/${id}/set-current`),
 };
