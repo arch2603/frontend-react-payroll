@@ -23,6 +23,10 @@ export default function ResetPassword() {
       setErr("Passwords do not match.");
       return;
     }
+    if (password.length < 12) {
+      setErr('Password must be at least 12 characters.');
+      return;
+    }
     setErr(""); setLoading(true);
     try {
       await resetPassword({ token, password });
@@ -45,6 +49,7 @@ export default function ResetPassword() {
         onChange={(e) => setPassword(e.target.value)}
         placeholder="New password"
         className="w-full border rounded px-3 py-2"
+        autoComplete="new-password"
         required
       />
       <input
@@ -54,7 +59,7 @@ export default function ResetPassword() {
         onChange={(e) => setConfirm(e.target.value)}
         placeholder="Confirm new password"
         className="w-full border rounded px-3 py-2"
-        autoComplete="confirmpassword"
+        autoComplete="new-password"
         required
       />
       {/* Optional: <PasswordRequirements value={password} /> */}

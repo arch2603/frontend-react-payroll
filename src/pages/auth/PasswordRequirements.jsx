@@ -1,6 +1,6 @@
 export default function PasswordRequirements({ currentPassword, newPassword, confirm, incomingRules }) {
   const rules = incomingRules ?? {
-    minLen: newPassword.length >= 8,
+    minLen: newPassword.length >= 12,
     upper: /[A-Z]/.test(newPassword),
     lower: /[a-z]/.test(newPassword),
     digit: /\d/.test(newPassword),
@@ -23,7 +23,7 @@ export default function PasswordRequirements({ currentPassword, newPassword, con
     <div className="rounded-md bg-gray-50 dark:bg-gray-800 p-3">
       <div className="text-sm font-medium mb-2">Password must contain:</div>
       <ul className="space-y-1">
-        <Item ok={rules.minLen}>At least 8 characters</Item>
+        <Item ok={rules.minLen}>At least 12 characters</Item>
         <Item ok={rules.upper}>An uppercase letter (A-Z)</Item>
         <Item ok={rules.lower}>A lowercase letter (a-z)</Item>
         <Item ok={rules.digit}>A number (0-9)</Item>

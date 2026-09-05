@@ -22,7 +22,7 @@ export default function ResetWithOtp() {
     }, [cooldown]);
 
     const okToSubmit = useMemo(() => {
-        const passOk = password.length >= 8 && password === confirm;
+        const passOk = password.length >= 12 && password === confirm;
         const otpOk = /^\d{6}$/.test(otp.trim());
         return !!emailOrUsername.trim() && passOk && otpOk;
     }, [emailOrUsername, password, confirm, otp]);
@@ -122,7 +122,7 @@ export default function ResetWithOtp() {
                         newPassword={password}
                         confirm={confirm}
                         rules={{
-                            minLen: password.length >= 8,
+                            minLen: password.length >= 12,
                             upper: /[A-Z]/.test(password),
                             lower: /[a-z]/.test(password),
                             digit: /\d/.test(password),

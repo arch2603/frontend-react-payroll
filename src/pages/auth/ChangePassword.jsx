@@ -26,7 +26,7 @@ const ChangePassword = () => {
     const rules = useMemo(() => {
         const v = form.newPassword || "";
         return {
-            minLen: v.length >= 8,
+            minLen: v.length >= 12,
             upper: /[A-Z]/.test(v),
             lower: /[a-z]/.test(v),
             digit: /[0-9]/.test(v),
@@ -42,12 +42,6 @@ const ChangePassword = () => {
             setMsg({ type: "error", text: "New passwords do not match." });
             return;
         }
-        const token = localStorage.getItem("token");
-        if (!token) {
-            navigate("/login", { replace: true });
-            return;
-        }
-
         setBusy(true);
         setMsg({ type: "", text: "" });
 
@@ -57,8 +51,7 @@ const ChangePassword = () => {
                 {
                     currentPassword: form.currentPassword,
                     newPassword: form.newPassword,
-                },
-                { headers: { ...authHeader() } }
+                }
             );
             setMsg({ type: "success", text: res?.data?.message || "Password changed." });
             setForm({ currentPassword: "", newPassword: "", confirm: "" });
@@ -133,7 +126,12 @@ const ChangePassword = () => {
                     autoComplete="new-password"
                     required
                 />
-                <PasswordRequirements rules={rules} newPassword={form.newPassword} />
+                <PasswordRequirements
+                    incomingRules={rules}
+                    currentPassword={form.currentPassword}
+                    newPassword={form.newPassword}
+                    confirm={form.confirm}
+                />
                 <button
                     type="submit"
                     disabled={!canSubmit}
